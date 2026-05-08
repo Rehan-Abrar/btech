@@ -1,4 +1,4 @@
-# FlowMind — Web Nexus Day 1 Game Plan
+# Axon — Web Nexus Day 1 Game Plan
 
 ## Executive Summary
 
@@ -30,8 +30,8 @@ The plan divides work into three parallel tracks: Person A owns the app shell, d
 **Person A runs these commands. Everyone else waits until setup is done (~10 min).**
 
 ```bash
-npm create vite@latest flowmind -- --template react
-cd flowmind
+npm create vite@latest axon -- --template react
+cd axon
 npm install
 npm install -D tailwindcss postcss autoprefixer
 npx tailwindcss init -p
@@ -116,7 +116,7 @@ export const mockEvents = [
 export const mockUser = {
   id: 1,
   name: "Demo User",
-  email: "demo@flowmind.app",
+  email: "demo@axon.app",
   role: "Student",
   avatar: "DU",
 };
@@ -270,7 +270,7 @@ export default function Sidebar({ user, onAddTask }) {
   return (
     <aside className="w-60 bg-white border-r border-gray-200 flex flex-col py-6 px-4 shrink-0">
       <div className="mb-8">
-        <h1 className="text-xl font-bold text-indigo-600">✦ FlowMind</h1>
+        <h1 className="text-xl font-bold text-indigo-600">✦ Axon</h1>
         <p className="text-xs text-gray-400 mt-1">AI Task Automation</p>
       </div>
       <button onClick={onAddTask} className="mb-6 bg-indigo-600 text-white text-sm font-medium py-2 px-4 rounded-lg hover:bg-indigo-700 transition">
@@ -700,7 +700,7 @@ export default function Login({ onLogin }) {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-indigo-600">✦ FlowMind</h1>
+          <h1 className="text-2xl font-bold text-indigo-600">✦ Axon</h1>
           <p className="text-gray-500 text-sm mt-2">Sign in to your workspace</p>
         </div>
         {error && <p className="text-red-600 text-sm mb-4 bg-red-50 p-3 rounded-lg">{error}</p>}
@@ -736,7 +736,7 @@ export default function Register() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-indigo-600">✦ FlowMind</h1>
+          <h1 className="text-2xl font-bold text-indigo-600">✦ Axon</h1>
           <p className="text-gray-500 text-sm mt-2">Create your account</p>
         </div>
         <div className="flex flex-col gap-4">
@@ -926,7 +926,7 @@ export default function AIChat({ tasks, onEventCreate, initialPrompt = "" }) {
 
 **[0:00–0:30] — Dashboard**
 
-> "This is FlowMind, our AI-powered task automation platform. The dashboard gives you an instant health check of your work — total tasks, completed, in progress, and overdue — all computed live from your task data."
+> "This is Axon, our AI-powered task automation platform. The dashboard gives you an instant health check of your work — total tasks, completed, in progress, and overdue — all computed live from your task data."
 
 *Click:* Show the 4 stat cards. Point to the Recent Activity feed.
 
