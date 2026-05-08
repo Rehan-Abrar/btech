@@ -1,157 +1,340 @@
-// src/components/TaskModal.jsx
-// Person B owns this component — this production stub ensures Person A's shell compiles.
-// Prop contract: task=null → create mode; task=object → edit mode
-// onSave(task), onClose()
-
 import { useState, useEffect } from "react";
-import { PRIORITIES, STATUSES } from "../data/mockTasks";
 
-const XIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-  </svg>
-);
+const STATUSES = ["To Do", "In Progress", "Review", "Done"];
+const PRIORITIES = ["High", "Medium", "Low"];
 
-const inputClass = `
-  w-full bg-steel border border-steel/60 text-white text-sm rounded-xl
-  px-4 py-2.5 placeholder:text-iron font-mono
-  focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/30
-  transition-all
-`;
+// AXON Color Palette
+const COLORS = {
+  navyBlue: "#0A2647",
+  mustardGold: "#D4AF37",
+  pureWhite: "#FFFFFF",
+  richBlack: "#1A1A1A",
+  skyBlue: "#87CEEB",
+  steelRim: "#1E3A5F",
+  alertRed: "#FF4D4D",
+  cautionAmber: "#F5A623",
+  taskGreen: "#22C55E",
+  ironGray: "#5A6380",
+};
 
-const labelClass = "block text-xs font-medium text-iron uppercase tracking-wider mb-1.5";
+const PRIORITY_BADGE = {
+  High: { bg: "bg-red-900", text: "text-red-300", border: "border-red-700" },
+  Medium: { bg: "bg-amber-900", text: "text-amber-300", border: "border-amber-700" },
+  Low: { bg: "bg-green-900", text: "text-green-300", border: "border-green-700" },
+};
 
 export default function TaskModal({ task, onSave, onClose }) {
   const [form, setForm] = useState({
-    title: "", description: "", priority: "Medium",
-    status: "To Do", due: "", assignee: "", tags: [],
+    title: "",
+    description: "",
+    priority: "Medium",
+    status: "To Do",
+    due: "",
+    assignee: "",
+    tags: [],
   });
 
-  // Populate form when editing — plan failure mode #2: must include task in deps
+  const [errors, setErrors] = useState({});
+
   useEffect(() => {
-    if (task) setForm(task);
+    if (task) {
+      setForm(task);
+    } else {
+      // Set default due date to tomorrow
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setForm(prev => ({
+        ...prev,
+        due: tomorrow.toISOString().split("T")[0],
+      }));
+    }
+    setErrors({});
   }, [task]);
 
-  const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    if (!form.title.trim()) newErrors.title = "Task title required.";
+    if (!form.due) newErrors.due = "Due date required.";
+    
+    const selectedDate = new Date(form.due);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (selectedDate < today) {
+      newErrors.due = "Due date cannot be in the past.";
+    }
+    return newErrors;
+  };
 
   const handleSubmit = () => {
-    if (!form.title.trim()) { alert("Title is required"); return; }
-    if (!form.due)           { alert("Due date is required"); return; }
+    const newErrors = validate();
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
     onSave(form);
   };
 
-  return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={e => e.target === e.currentTarget && onClose()}
-    >
-      <div className="modal-enter bg-navy border border-steel rounded-2xl shadow-2xl w-full max-w-lg relative">
+  const isEditMode = !!task;
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-steel">
-          <h2 className="text-base font-semibold text-white">
-            {task ? "Edit task" : "New task"}
-          </h2>
-          <button
-            id="modal-close-btn"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-steel text-iron hover:text-white hover:bg-steel/80 flex items-center justify-center transition-all"
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(26, 26, 26, 0.6)" }}
+    >
+      <div 
+        className="w-full max-w-lg rounded-2xl shadow-2xl p-8 relative border"
+        style={{
+          backgroundColor: COLORS.navyBlue,
+          borderColor: COLORS.steelRim,
+        }}
+      >
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 text-opacity-60 hover:text-opacity-100 transition text-2xl font-light"
+          style={{ color: COLORS.skyBlue }}
+        >
+          ×
+        </button>
+
+        {/* Modal Header */}
+        <div className="mb-6">
+          <h2 
+            className="text-2xl font-medium"
+            style={{ color: COLORS.pureWhite }}
           >
-            <XIcon />
-          </button>
+            {isEditMode ? `Edit task` : `Create new task`}
+          </h2>
+          <p 
+            className="text-sm mt-1 font-regular"
+            style={{ color: COLORS.skyBlue }}
+          >
+            {isEditMode ? `Modify task details below.` : `Set up your task below. AI will help with scheduling.`}
+          </p>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 flex flex-col gap-4">
+        {/* Form Fields */}
+        <div className="flex flex-col gap-5">
+          {/* Title Field */}
           <div>
-            <label className={labelClass}>Title *</label>
+            <label 
+              className="block text-xs font-medium mb-2 uppercase tracking-wide"
+              style={{ color: COLORS.skyBlue }}
+            >
+              Task Title *
+            </label>
             <input
-              id="modal-title"
+              type="text"
               value={form.title}
-              onChange={e => set("title", e.target.value)}
-              placeholder="Task title..."
-              className={inputClass}
+              onChange={e => handleChange("title", e.target.value)}
+              placeholder="E.g., Design landing page mockups"
+              className="w-full px-4 py-3 rounded-full text-sm transition outline-none"
+              style={{
+                backgroundColor: COLORS.richBlack,
+                borderWidth: "1px",
+                borderColor: errors.title ? COLORS.alertRed : COLORS.mustardGold,
+                color: COLORS.pureWhite,
+              }}
+              onFocus={e => e.target.style.borderColor = COLORS.mustardGold}
             />
+            {errors.title && (
+              <p className="text-xs mt-1.5 font-medium" style={{ color: COLORS.alertRed }}>
+                {errors.title}
+              </p>
+            )}
           </div>
 
+          {/* Description Field */}
           <div>
-            <label className={labelClass}>Description</label>
+            <label 
+              className="block text-xs font-medium mb-2 uppercase tracking-wide"
+              style={{ color: COLORS.skyBlue }}
+            >
+              Description
+            </label>
             <textarea
-              id="modal-description"
               value={form.description}
-              onChange={e => set("description", e.target.value)}
+              onChange={e => handleChange("description", e.target.value)}
               rows={3}
-              placeholder="What needs to be done?"
-              className={`${inputClass} resize-none`}
+              placeholder="What needs to be done? Add context, requirements, or notes here."
+              className="w-full px-4 py-3 rounded-2xl text-sm transition outline-none resize-none"
+              style={{
+                backgroundColor: COLORS.richBlack,
+                borderWidth: "1px",
+                borderColor: COLORS.mustardGold,
+                color: COLORS.pureWhite,
+              }}
             />
           </div>
 
+          {/* Priority & Status Row */}
           <div className="grid grid-cols-2 gap-4">
+            {/* Priority Dropdown */}
             <div>
-              <label className={labelClass}>Priority</label>
-              <select
-                id="modal-priority"
-                value={form.priority}
-                onChange={e => set("priority", e.target.value)}
-                className={inputClass}
+              <label 
+                className="block text-xs font-medium mb-2 uppercase tracking-wide"
+                style={{ color: COLORS.skyBlue }}
               >
-                {PRIORITIES.map(p => <option key={p} value={p} className="bg-navy">{p}</option>)}
+                Priority
+              </label>
+              <select
+                value={form.priority}
+                onChange={e => handleChange("priority", e.target.value)}
+                className="w-full px-4 py-3 rounded-full text-sm transition outline-none appearance-none font-regular"
+                style={{
+                  backgroundColor: COLORS.richBlack,
+                  borderWidth: "1px",
+                  borderColor: COLORS.mustardGold,
+                  color: COLORS.pureWhite,
+                }}
+              >
+                {PRIORITIES.map(p => (
+                  <option key={p} value={p} style={{ backgroundColor: COLORS.navyBlue, color: COLORS.pureWhite }}>
+                    {p}
+                  </option>
+                ))}
               </select>
             </div>
+
+            {/* Status Dropdown */}
             <div>
-              <label className={labelClass}>Status</label>
-              <select
-                id="modal-status"
-                value={form.status}
-                onChange={e => set("status", e.target.value)}
-                className={inputClass}
+              <label 
+                className="block text-xs font-medium mb-2 uppercase tracking-wide"
+                style={{ color: COLORS.skyBlue }}
               >
-                {STATUSES.map(s => <option key={s} value={s} className="bg-navy">{s}</option>)}
+                Status
+              </label>
+              <select
+                value={form.status}
+                onChange={e => handleChange("status", e.target.value)}
+                className="w-full px-4 py-3 rounded-full text-sm transition outline-none appearance-none font-regular"
+                style={{
+                  backgroundColor: COLORS.richBlack,
+                  borderWidth: "1px",
+                  borderColor: COLORS.mustardGold,
+                  color: COLORS.pureWhite,
+                }}
+              >
+                {STATUSES.map(s => (
+                  <option key={s} value={s} style={{ backgroundColor: COLORS.navyBlue, color: COLORS.pureWhite }}>
+                    {s}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
+          {/* Due Date & Assignee Row */}
           <div className="grid grid-cols-2 gap-4">
+            {/* Due Date Field */}
             <div>
-              <label className={labelClass}>Due date *</label>
+              <label 
+                className="block text-xs font-medium mb-2 uppercase tracking-wide"
+                style={{ color: COLORS.skyBlue }}
+              >
+                Due Date *
+              </label>
               <input
-                id="modal-due"
                 type="date"
                 value={form.due}
-                onChange={e => set("due", e.target.value)}
-                className={`${inputClass} [color-scheme:dark]`}
+                onChange={e => handleChange("due", e.target.value)}
+                className="w-full px-4 py-3 rounded-full text-sm transition outline-none"
+                style={{
+                  backgroundColor: COLORS.richBlack,
+                  borderWidth: "1px",
+                  borderColor: errors.due ? COLORS.alertRed : COLORS.mustardGold,
+                  color: COLORS.pureWhite,
+                }}
               />
+              {errors.due && (
+                <p className="text-xs mt-1.5 font-medium" style={{ color: COLORS.alertRed }}>
+                  {errors.due}
+                </p>
+              )}
             </div>
+
+            {/* Assignee Field */}
             <div>
-              <label className={labelClass}>Assignee</label>
+              <label 
+                className="block text-xs font-medium mb-2 uppercase tracking-wide"
+                style={{ color: COLORS.skyBlue }}
+              >
+                Assignee
+              </label>
               <input
-                id="modal-assignee"
+                type="text"
                 value={form.assignee}
-                onChange={e => set("assignee", e.target.value)}
-                placeholder="Name"
-                className={inputClass}
+                onChange={e => handleChange("assignee", e.target.value)}
+                placeholder="E.g., Alex, Sam"
+                className="w-full px-4 py-3 rounded-full text-sm transition outline-none"
+                style={{
+                  backgroundColor: COLORS.richBlack,
+                  borderWidth: "1px",
+                  borderColor: COLORS.mustardGold,
+                  color: COLORS.pureWhite,
+                }}
               />
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 justify-end px-6 py-4 border-t border-steel">
+        {/* Footer Actions */}
+        <div className="flex gap-3 mt-8 justify-end">
+          {/* Cancel Button */}
           <button
-            id="modal-cancel-btn"
             onClick={onClose}
-            className="px-5 py-2 text-sm text-skyblue border border-steel rounded-pill hover:bg-steel transition-all"
+            className="px-6 py-3 text-sm font-medium rounded-full transition border-2"
+            style={{
+              backgroundColor: "transparent",
+              borderColor: COLORS.steelRim,
+              color: COLORS.skyBlue,
+            }}
+            onMouseEnter={e => {
+              e.target.style.borderColor = COLORS.skyBlue;
+              e.target.style.backgroundColor = `${COLORS.navyBlue}80`;
+            }}
+            onMouseLeave={e => {
+              e.target.style.borderColor = COLORS.steelRim;
+              e.target.style.backgroundColor = "transparent";
+            }}
           >
             Cancel
           </button>
+
+          {/* Save / Create Button */}
           <button
-            id="modal-save-btn"
             onClick={handleSubmit}
-            className="px-6 py-2 text-sm font-medium bg-gold text-navy rounded-pill hover:brightness-110 active:scale-95 transition-all"
+            className="px-6 py-3 text-sm font-medium rounded-full transition"
+            style={{
+              backgroundColor: COLORS.mustardGold,
+              color: COLORS.navyBlue,
+            }}
+            onMouseEnter={e => {
+              e.target.style.backgroundColor = "#E5C158";
+              e.target.style.boxShadow = `0 0 16px ${COLORS.mustardGold}40`;
+            }}
+            onMouseLeave={e => {
+              e.target.style.backgroundColor = COLORS.mustardGold;
+              e.target.style.boxShadow = "none";
+            }}
           >
-            {task ? "Save changes" : "Create task"}
+            {isEditMode ? "Save changes" : "Create task"}
           </button>
         </div>
+
+        {/* AI Hint */}
+        <p 
+          className="text-xs mt-6 text-center font-regular italic"
+          style={{ color: COLORS.ironGray }}
+        >
+          ✦ AXON will auto-schedule this task once created.
+        </p>
       </div>
     </div>
   );
