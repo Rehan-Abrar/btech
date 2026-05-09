@@ -14,8 +14,13 @@ const app = express();
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow any localhost origin (handles Vite's auto-port-increment)
-    if (!origin || origin.startsWith("http://localhost") || origin === process.env.FRONTEND_URL) {
+    // Allow any localhost origin or any Vercel domain dynamically
+    if (
+      !origin || 
+      origin.startsWith("http://localhost") || 
+      origin === process.env.FRONTEND_URL ||
+      origin.endsWith(".vercel.app")
+    ) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"));
