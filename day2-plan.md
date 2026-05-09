@@ -1,4 +1,4 @@
-# FlowMind — Web Nexus Day 2 Game Plan
+# Axon — Web Nexus Day 2 Game Plan
 
 ## Executive Summary
 
@@ -26,7 +26,7 @@ The backend is a single Express app. Database is PostgreSQL. Auth uses bcrypt + 
 
 ```bash
 # In a NEW folder alongside the frontend
-mkdir flowmind-backend && cd flowmind-backend
+mkdir axon-backend && cd axon-backend
 npm init -y
 npm install express pg bcrypt jsonwebtoken dotenv zod cors cookie-parser
 npm install -D nodemon
@@ -44,7 +44,7 @@ npm install -D nodemon
 
 ### Folder Structure
 ```
-flowmind-backend/
+axon-backend/
   src/
     index.js            ← Person A
     db.js               ← Person A
@@ -64,7 +64,7 @@ flowmind-backend/
 ### .env file
 ```env
 PORT=3001
-DATABASE_URL=postgresql://postgres:password@localhost:5432/flowmind
+DATABASE_URL=postgresql://postgres:password@localhost:5432/axon
 JWT_SECRET=supersecretkey_change_in_prod_32chars
 JWT_REFRESH_SECRET=anothersecret_change_in_prod_32chars
 GEMINI_API_KEY=your_gemini_api_key_here
@@ -79,7 +79,7 @@ NODE_ENV=development
 
 ```sql
 -- src/schema.sql
--- Run: psql -U postgres -d flowmind -f src/schema.sql
+-- Run: psql -U postgres -d axon -f src/schema.sql
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -155,8 +155,8 @@ CREATE TRIGGER tasks_updated_at
 
 **Run it:**
 ```bash
-psql -U postgres -c "CREATE DATABASE flowmind;"
-psql -U postgres -d flowmind -f src/schema.sql
+psql -U postgres -c "CREATE DATABASE axon;"
+psql -U postgres -d axon -f src/schema.sql
 ```
 
 ---
@@ -228,7 +228,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`FlowMind API running on :${PORT}`));
+app.listen(PORT, () => console.log(`Axon API running on :${PORT}`));
 ```
 
 ### src/middleware/auth.js
@@ -984,7 +984,7 @@ router.post("/chat", async (req, res) => {
     );
     const history = historyResult.rows.reverse();
 
-    const systemPrompt = `You are FlowMind, an AI productivity assistant. The user's current tasks are:
+    const systemPrompt = `You are Axon, an AI productivity assistant. The user's current tasks are:
 ${tasks.map(t => `- ${t.title} (${t.priority} priority, ${t.status}, due: ${t.due_date || "no date"})`).join("\n")}
 
 Recent conversation:
@@ -1399,7 +1399,7 @@ export default function App() {
     <div className="h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
         <div className="text-indigo-600 text-4xl mb-4">✦</div>
-        <p className="text-gray-500">Loading FlowMind...</p>
+        <p className="text-gray-500">Loading Axon...</p>
       </div>
     </div>
   );
@@ -1609,7 +1609,7 @@ Only return JSON.`;
 > "Professionals lose hours every week to manual task management with zero intelligence. Tools like Trello tell you what's due — they don't tell you what to do next."
 
 **[0:20–0:50]** — Live Demo
-> "FlowMind is an AI productivity platform. Watch: I type 'I need to prepare a client report by tomorrow' — it parses the intent, creates the task, assigns a priority, and slots it into today's schedule automatically."
+> "Axon is an AI productivity platform. Watch: I type 'I need to prepare a client report by tomorrow' — it parses the intent, creates the task, assigns a priority, and slots it into today's schedule automatically."
 *Demo: type in AI chat, show task appearing on board, show calendar updating.*
 
 **[0:50–1:20]** — Technical Depth
@@ -1619,7 +1619,7 @@ Only return JSON.`;
 > "We built against our UML diagrams: the sequence diagram maps exactly to our POST /api/ai/chat endpoint flow. The class diagram is our PostgreSQL schema. Every design decision was intentional."
 
 **[1:50–2:00]** — Close
-> "FlowMind doesn't just manage tasks. It manages your day. Thank you."
+-> "Axon doesn't just manage tasks. It manages your day. Thank you."
 
 ---
 
