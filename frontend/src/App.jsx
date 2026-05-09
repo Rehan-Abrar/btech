@@ -1,8 +1,7 @@
-// src/App.jsx
-// Person A — integration hub. All state lives here; every component gets data via props.
-// Day 2: replace useState(mockTasks) with await fetchTasks(), replace isLoggedIn with JWT check.
+// frontend/src/App.jsx — Day 2 Production Version
+// Real JWT auth. Login is the entry point. No mock data.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Sidebar      from "./components/Sidebar";
 import Dashboard    from "./components/Dashboard";
@@ -12,140 +11,201 @@ import AIChat       from "./components/AIChat";
 import TaskModal    from "./components/TaskModal";
 import Login        from "./pages/Login";
 import Register     from "./pages/Register";
-import { mockTasks, mockEvents, mockUser } from "./data/mockTasks";
+import { fetchTasks, createTask, updateTask, deleteTask } from "./api/tasks";
+import { logout as apiLogout, getStoredUser } from "./api/auth";
+import { STATUS_TO_DB, STATUS_FROM_DB, PRIORITY_FROM_DB, PRIORITY_TO_DB } from "./utils/normalize";
 import gradiantBg from "./gradiant.png";
 
 export default function App() {
-  // ── Core data state ────────────────────────────────────────
-  const [tasks,       setTasks]      = useState(mockTasks);
-  const [events,      setEvents]     = useState(mockEvents);
-  const [currentUser]                = useState(mockUser);
-  const [isLoggedIn,  setIsLoggedIn] = useState(true); // true = demo mode; Day 2: JWT
-
-  // ── Modal state ────────────────────────────────────────────
+  const [tasks,       setTasks]      = useState([]);
+  const [events,      setEvents]     = useState([]);
+  const [currentUser, setCurrentUser] = useState(getStoredUser());
   const [modalOpen,   setModalOpen]  = useState(false);
-  const [taskToEdit,  setTaskToEdit] = useState(null); // null = create, object = edit
+  const [taskToEdit,  setTaskToEdit] = useState(null);
+  const [loading,     setLoading]    = useState(true);
 
-  // ── Handlers (lifted to App; passed down as props) ─────────
-  const handleAdd    = ()       => { setTaskToEdit(null);  setModalOpen(true); };
-  const handleEdit   = (task)   => { setTaskToEdit(task);  setModalOpen(true); };
-  const handleDelete = (id)     => setTasks(prev => prev.filter(t => t.id !== id));
-  const handleMove   = (id, newStatus) =>
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+  const isLoggedIn = !!currentUser && !!localStorage.getItem("accessToken");
 
-  const handleEventCreate = (event) =>
-    setEvents(prev => [...prev, event]);
+  // Load tasks when user logs in
+  useEffect(() => {
+    if (!isLoggedIn) { setLoading(false); return; }
+    setLoading(true);
+    fetchTasks()
+      .then(raw => setTasks(raw.map(normalizeTask)))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [isLoggedIn]);
 
-  const handleSave = (task) => {
-    if (task.id) {
-      // Edit path — spread to avoid mutation (plan failure mode #5)
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...task } : t));
-    } else {
-      // Create path
-      setTasks(prev => [...prev, { ...task, id: Date.now() }]);
-    }
-    setModalOpen(false);
+  // Normalize a DB task row to frontend format
+  const normalizeTask = (t) => ({
+    ...t,
+    status:   STATUS_FROM_DB[t.status]   || t.status,
+    priority: PRIORITY_FROM_DB[t.priority] || t.priority,
+    due:      t.due_date || t.due || "",
+  });
+
+  // ── Handlers ────────────────────────────────────────────────
+  const handleAdd  = ()     => { setTaskToEdit(null);  setModalOpen(true); };
+  const handleEdit = (task) => { setTaskToEdit(task);  setModalOpen(true); };
+
+  const handleDelete = async (id) => {
+    try {
+      await deleteTask(id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+    } catch (err) { console.error(err); }
   };
 
-  const closeModal = () => setModalOpen(false);
+  const handleMove = async (id, newStatus) => {
+    const dbStatus = STATUS_TO_DB[newStatus] || newStatus;
+    try {
+      await updateTask(id, { status: dbStatus });
+      setTasks(prev => prev.map(t =>
+        t.id === id ? { ...t, status: STATUS_FROM_DB[dbStatus] || newStatus } : t
+      ));
+    } catch (err) { console.error(err); }
+  };
 
-  // ── Auth guard ─────────────────────────────────────────────
-  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  const handleSave = async (formTask) => {
+    const payload = {
+      title:       formTask.title,
+      description: formTask.description || "",
+      due_date:    formTask.due || null,
+      priority:    PRIORITY_TO_DB[formTask.priority] || formTask.priority?.toLowerCase() || "medium",
+      status:      STATUS_TO_DB[formTask.status]     || formTask.status?.toLowerCase().replace(" ", "-") || "todo",
+    };
+
+    try {
+      if (formTask.id) {
+        const updated = await updateTask(formTask.id, payload);
+        setTasks(prev => prev.map(t => t.id === formTask.id ? normalizeTask(updated) : t));
+      } else {
+        const created = await createTask(payload);
+        setTasks(prev => [...prev, normalizeTask(created)]);
+      }
+      setModalOpen(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleEventCreate = (event) => setEvents(prev => [...prev, event]);
+
+  const handleTaskCreated = (task) => {
+    setTasks(prev => [...prev, normalizeTask(task)]);
+  };
+
+  const handleLogin = () => {
+    setCurrentUser(getStoredUser());
+  };
+
+  const handleLogout = async () => {
+    await apiLogout();
+    setCurrentUser(null);
+    setTasks([]);
+    setEvents([]);
+  };
+
+  // ── Loading spinner (AXON branded) ──────────────────────────
+  if (loading && isLoggedIn) {
+    return (
+      <div
+        className="h-screen flex items-center justify-center"
+        style={{
+          backgroundImage: `url(${gradiantBg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundColor: "#1A1A1A",
+        }}
+      >
+        <div className="text-center">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" className="mx-auto mb-4 animate-pulse">
+            <path d="M13.2 2L5.8 13H11L9.8 22L18.2 10.8H13.6L13.2 2Z" fill="#D4AF37" />
+          </svg>
+          <p style={{ color: "#87CEEB", fontFamily: "JetBrains Mono, monospace", fontSize: "14px" }}>
+            Loading Axon...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
-      {/* Outer shell: sidebar fixed left, main scrolls right */}
-      <div 
+      <div
         className="relative flex h-screen overflow-hidden bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: `url(${gradiantBg})`,
-          backgroundColor: '#1A1A1A'
+          backgroundColor: "#1A1A1A",
         }}
       >
-        {/* App-wide scrim */}
+        {/* App-wide dark scrim */}
         <div
           className="absolute inset-0 pointer-events-none z-0"
           style={{ background: "rgba(0,0,0,0.15)" }}
         />
 
-        {/* Content container (above scrim) */}
+        {/* Content above scrim */}
         <div className="relative z-10 flex h-full w-full">
-          <Sidebar user={currentUser} onAddTask={handleAdd} />
+          {isLoggedIn && (
+            <Sidebar user={currentUser} onAddTask={handleAdd} onLogout={handleLogout} />
+          )}
 
-          {/* Main content area */}
           <main className="flex-1 overflow-y-auto min-w-0">
-          <Routes>
-            <Route
-              path="/"
-              element={
-                <Dashboard
-                  tasks={tasks}
-                  onAddTask={handleAdd}
-                />
-              }
-            />
-            <Route
-              path="/board"
-              element={
-                <KanbanBoard
-                  tasks={tasks}
-                  onAdd={handleAdd}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onMove={handleMove}
-                />
-              }
-            />
-            <Route
-              path="/calendar"
-              element={
-                <CalendarView
-                  tasks={tasks}
-                  events={events}
-                  onAdd={handleAdd}
-                  onEdit={handleEdit}
-                />
-              }
-            />
-            <Route
-              path="/ai"
-              element={
-                <AIChat
-                  tasks={tasks}
-                  onEventCreate={handleEventCreate}
-                />
-              }
-            />
-            <Route
-              path="/ai/schedule"
-              element={
-                <AIChat
-                  tasks={tasks}
-                  onEventCreate={handleEventCreate}
-                  initialPrompt="Generate my schedule for today"
-                />
-              }
-            />
-            <Route
-              path="/login"
-              element={<Login onLogin={() => setIsLoggedIn(true)} />}
-            />
-            <Route
-              path="/register"
-              element={<Register />}
-            />
-            {/* Catch-all → dashboard */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
+            <Routes>
+              {/* Auth routes — redirect to "/" if already logged in */}
+              <Route
+                path="/login"
+                element={isLoggedIn ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />}
+              />
+              <Route
+                path="/register"
+                element={isLoggedIn ? <Navigate to="/" replace /> : <Register onLogin={handleLogin} />}
+              />
+
+              {/* Protected routes — redirect to "/login" if not logged in */}
+              <Route
+                path="/"
+                element={isLoggedIn
+                  ? <Dashboard tasks={tasks} onAddTask={handleAdd} />
+                  : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/board"
+                element={isLoggedIn
+                  ? <KanbanBoard tasks={tasks} onAdd={handleAdd} onEdit={handleEdit} onDelete={handleDelete} onMove={handleMove} />
+                  : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/calendar"
+                element={isLoggedIn
+                  ? <CalendarView tasks={tasks} events={events} onAdd={handleAdd} onEdit={handleEdit} />
+                  : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/ai"
+                element={isLoggedIn
+                  ? <AIChat tasks={tasks} onEventCreate={handleEventCreate} onTaskCreated={handleTaskCreated} />
+                  : <Navigate to="/login" replace />}
+              />
+              <Route
+                path="/ai/schedule"
+                element={isLoggedIn
+                  ? <AIChat tasks={tasks} onEventCreate={handleEventCreate} onTaskCreated={handleTaskCreated} initialPrompt="Generate my schedule for today" />
+                  : <Navigate to="/login" replace />}
+              />
+
+              {/* Catch-all */}
+              <Route path="*" element={<Navigate to={isLoggedIn ? "/" : "/login"} replace />} />
+            </Routes>
+          </main>
         </div>
 
-        {/* Global task modal — rendered at App level so it overlays everything */}
+        {/* Global task modal */}
         {modalOpen && (
           <TaskModal
             task={taskToEdit}
             onSave={handleSave}
-            onClose={closeModal}
+            onClose={() => setModalOpen(false)}
           />
         )}
       </div>

@@ -1,6 +1,7 @@
 // src/pages/Login.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { login } from "../api/auth";
 
 const AXON = {
   // Palette aligned with AXON Brand Identity System
@@ -174,30 +175,21 @@ export default function Login({ onLogin }) {
   };
 
   const handleSubmit = async () => {
-    const allTouched = {
-      email: true,
-      password: true,
-    };
-
+    const allTouched = { email: true, password: true };
     setTouched(allTouched);
-
     const e = validate(form);
     setErrors(e);
-
     if (Object.keys(e).length > 0) return;
 
     setLoading(true);
-    setGlobalError('');
+    setGlobalError("");
 
     try {
-      await new Promise((r) => setTimeout(r, 700));
-
+      await login(form.email, form.password);
       onLogin();
-      navigate('/');
-    } catch {
-      setGlobalError(
-        'Incorrect email or password. Please try again.'
-      );
+      navigate("/");
+    } catch (err) {
+      setGlobalError(err.message || "Incorrect email or password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -464,7 +456,6 @@ export default function Login({ onLogin }) {
           </p>
         </div>
 
-        {/* Bottom note */}
         <p
           style={{
             marginTop: '22px',
@@ -474,7 +465,7 @@ export default function Login({ onLogin }) {
             lineHeight: '1.6',
           }}
         >
-          Use demo@axon.app with any password to sign in during Day 1.
+          Secure sign-in · JWT + bcrypt · AXON Platform
         </p>
       </div>
     </div>

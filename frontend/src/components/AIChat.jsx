@@ -1,13 +1,22 @@
 // src/components/AIChat.jsx
 import { useEffect, useRef, useState, useCallback } from "react";
 import ChatBubble from "./ChatBubble";
-import { mockResponses, initialMessages } from "../data/mockChats";
+import { chatWithAI, generateSchedule } from "../api/ai";
 
 const SUGGESTIONS = [
   "Generate my schedule for today",
   "Show high priority tasks",
   "What's overdue?",
   "Create a task: Review PR by tomorrow",
+];
+
+const initialMessages = [
+  {
+    id: 1,
+    role: "assistant",
+    text: "Hello! I'm Axon, your AI productivity assistant. I can help you manage tasks, generate schedules, and answer questions about your workload. What would you like to do?",
+    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  },
 ];
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -36,17 +45,6 @@ const MicActiveIcon = () => (
     <line x1="9"  y1="22" x2="15" y2="22" stroke="currentColor" strokeWidth="2.2" />
   </svg>
 );
-
-// ── Mock response matcher ─────────────────────────────────────────────────────
-
-function getResponse(text) {
-  const lower = text.toLowerCase();
-  if (lower.includes("schedule"))                            return mockResponses.schedule;
-  if (lower.includes("overdue"))                             return mockResponses.overdue;
-  if (lower.includes("priority") || lower.includes("high")) return mockResponses.priority;
-  if (lower.includes("create")   || lower.includes("add"))  return mockResponses.create;
-  return mockResponses.default;
-}
 
 // ── Web Speech API hook ───────────────────────────────────────────────────────
 
@@ -112,7 +110,7 @@ function useVoiceInput({ onResult, onError }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function AIChat({ tasks, onEventCreate, initialPrompt = "" }) {
+export default function AIChat({ tasks, onEventCreate, onTaskCreated, initialPrompt = "" }) {
   const [messages,   setMessages]   = useState(initialMessages);
   const [input,      setInput]      = useState("");
   const [loading,    setLoading]    = useState(false);
@@ -138,22 +136,36 @@ export default function AIChat({ tasks, onEventCreate, initialPrompt = "" }) {
 
   const displayValue = isListening && transcript ? transcript : input;
 
-  const send = (text) => {
+  const send = async (text) => {
     const trimmed = (text || "").trim();
     if (!trimmed || loading) return;
     const ts = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setMessages(prev => [...prev, { id: Date.now(), user_id: 1, role: "user", type: "text", text: trimmed, timestamp: ts }]);
+    setMessages(prev => [...prev, { id: Date.now(), role: "user", text: trimmed, timestamp: ts }]);
     setInput("");
     setLoading(true);
 
-    // Day 2: replace with chatWithAI() / generateSchedule() from api/ai.js
-    setTimeout(() => {
-      setMessages(prev => [...prev, { id: Date.now() + 1, user_id: 1, role: "assistant", type: "text", text: getResponse(trimmed), timestamp: ts }]);
-      if (trimmed.toLowerCase().includes("schedule") && onEventCreate && tasks?.length > 0) {
-        onEventCreate({ id: Date.now() + 2, task_id: tasks[0].id, title: tasks[0].title, start: `${new Date().toISOString().split("T")[0]}T09:00`, end: `${new Date().toISOString().split("T")[0]}T10:00` });
+    try {
+      if (trimmed.toLowerCase().includes("schedule")) {
+        const data = await generateSchedule();
+        const aiMsg = { id: Date.now() + 1, role: "assistant", text: data.summary || "Schedule generated!", timestamp: ts };
+        setMessages(prev => [...prev, aiMsg]);
+        if (data.events?.length > 0 && onEventCreate) {
+          data.events.forEach(e => onEventCreate(e));
+        }
+      } else {
+        const data = await chatWithAI(trimmed);
+        const aiMsg = { id: Date.now() + 1, role: "assistant", text: data.reply, timestamp: ts };
+        setMessages(prev => [...prev, aiMsg]);
+        if (data.createdTask && onTaskCreated) {
+          onTaskCreated(data.createdTask);
+        }
       }
+    } catch (err) {
+      const errMsg = { id: Date.now() + 1, role: "assistant", text: "Sorry, I ran into an error. Please try again.", timestamp: ts };
+      setMessages(prev => [...prev, errMsg]);
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);

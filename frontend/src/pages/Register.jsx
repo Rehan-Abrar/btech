@@ -1,6 +1,7 @@
 // src/pages/Register.jsx
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { register } from "../api/auth";
 
 const AXON = {
   bg: '#1A1A1A',
@@ -167,7 +168,7 @@ function PasswordStrength({ password }) {
   );
 }
 
-export default function Register() {
+export default function Register({ onLogin }) {
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -179,7 +180,7 @@ export default function Register() {
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [globalError, setGlobalError] = useState('');
 
   const navigate = useNavigate();
 
@@ -241,29 +242,21 @@ export default function Register() {
   };
 
   const handleSubmit = async () => {
-    const allTouched = {
-      name: true,
-      email: true,
-      password: true,
-      confirm: true,
-    };
-
+    const allTouched = { name: true, email: true, password: true, confirm: true };
     setTouched(allTouched);
-
     const e = validate(form);
-
     setErrors(e);
-
     if (Object.keys(e).length > 0) return;
 
     setLoading(true);
+    setGlobalError('');
 
     try {
-      await new Promise((r) => setTimeout(r, 700));
-
-      setSuccess(true);
-
-      setTimeout(() => navigate('/login'), 1500);
+      await register({ name: form.name, email: form.email, password: form.password, role: form.role });
+      if (onLogin) onLogin();
+      navigate('/');
+    } catch (err) {
+      setGlobalError(err.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -367,7 +360,23 @@ export default function Register() {
             </p>
           </div>
 
-          {success ? (
+          {globalError && (
+            <div
+              style={{
+                background: AXON.errorBg,
+                border: `1px solid ${AXON.error}`,
+                padding: '10px 14px',
+                marginBottom: '20px',
+                fontSize: '13px',
+                color: AXON.error,
+                borderRadius: '10px',
+              }}
+            >
+              {globalError}
+            </div>
+          )}
+
+          {false ? (
             <div
               style={{
                 padding: '18px',

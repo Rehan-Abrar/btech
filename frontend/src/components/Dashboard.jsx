@@ -1,7 +1,8 @@
 // src/components/Dashboard.jsx
-// Person A — All stats computed live from props. No hardcoded numbers.
-// Includes: 4 stat cards, completion bar chart, priority pie chart (pure SVG), recent activity feed.
+// Person A — Stats loaded from real API. Falls back to prop-computed values.
 
+import { useEffect, useState } from "react";
+import { fetchSummary } from "../api/tasks";
 import EmptyState from "./EmptyState";
 
 // ── Palette tokens (mirrors brand identity) ──────────────────
@@ -138,12 +139,19 @@ function CompletionRing({ done, total }) {
 
 // ── Main Dashboard ────────────────────────────────────────────
 export default function Dashboard({ tasks, onAddTask }) {
-  const today     = new Date().toISOString().split("T")[0];
-  const total     = tasks.length;
-  const done      = tasks.filter(t => t.status === "Done").length;
-  const inProg    = tasks.filter(t => t.status === "In Progress").length;
-  const overdue   = tasks.filter(t => t.due < today && t.status !== "Done").length;
-  const dueToday  = tasks.filter(t => t.due === today && t.status !== "Done").length;
+  const today = new Date().toISOString().split("T")[0];
+  const [summary, setSummary] = useState(null);
+
+  useEffect(() => {
+    fetchSummary().then(setSummary).catch(console.error);
+  }, [tasks]);
+
+  // Use real API summary when available, fall back to prop-computed
+  const total    = summary?.total      ?? tasks.length;
+  const done     = summary?.completed  ?? tasks.filter(t => t.status === "Done").length;
+  const inProg   = summary?.in_progress ?? tasks.filter(t => t.status === "In Progress").length;
+  const overdue  = summary?.overdue    ?? tasks.filter(t => t.due < today && t.status !== "Done").length;
+  const dueToday = tasks.filter(t => t.due === today && t.status !== "Done").length;
 
   const statCards = [
     {

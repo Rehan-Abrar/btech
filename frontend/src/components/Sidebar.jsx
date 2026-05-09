@@ -38,6 +38,13 @@ const IconPlus = () => (
     <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
   </svg>
 );
+const IconLogout = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+    <polyline points="16 17 21 12 16 7"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+);
 const IconAxon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
     <circle cx="12" cy="12" r="3" fill="#D4AF37"/>
@@ -60,7 +67,7 @@ const managerLinks = [
   { to: "/ai/schedule",icon: <IconSchedule />,  label: "Get Schedule" },
 ];
 
-export default function Sidebar({ user, onAddTask }) {
+export default function Sidebar({ user, onAddTask, onLogout }) {
   const [collapsed, setCollapsed] = useState(false);
   const links = user?.role === "Manager" ? managerLinks : studentLinks;
 
@@ -144,10 +151,24 @@ export default function Sidebar({ user, onAddTask }) {
             {user?.avatar ?? "DU"}
           </div>
           {!collapsed && (
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-white truncate">{user?.name}</p>
               <p className="text-xs text-iron truncate">{user?.role}</p>
             </div>
+          )}
+          {/* Logout button */}
+          {onLogout && (
+            <button
+              id="sidebar-logout-btn"
+              onClick={onLogout}
+              title="Sign out"
+              className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all"
+              style={{ color: "#5A6380" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#FF4D4D"}
+              onMouseLeave={e => e.currentTarget.style.color = "#5A6380"}
+            >
+              <IconLogout />
+            </button>
           )}
         </div>
       </div>
