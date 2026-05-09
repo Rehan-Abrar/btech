@@ -50,7 +50,7 @@ export default function Landing() {
 
             <button
               type="button"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/register")}
               className="rounded-pill px-5 py-2 text-sm font-medium bg-gold text-navy hover:brightness-110 active:scale-95 transition"
             >
               Get started →
