@@ -79,7 +79,7 @@ TASK CREATION (CRITICAL RULES):
 If the user asks you to create or add a task, you MUST do BOTH of these:
 1. Say a polite conversational confirmation (e.g., "I've created the task for you.")
 2. Append EXACTLY this JSON format at the very END of your message (do not wrap in markdown):
-TASK_CREATE:{"title":"...","priority":"low|medium|high","status":"todo","due_date":"YYYY-MM-DD"}
+TASK_CREATE:{"title":"...","priority":"low|medium|high|urgent","status":"todo","due_date":"YYYY-MM-DD","recurring_rule":"daily|weekly|monthly|none"}
 
 Rules:
 - NEVER mention the TASK_CREATE JSON format, "JSON", or how you create tasks to the user. Do it silently behind the scenes.
@@ -200,23 +200,24 @@ router.post("/schedule", async (req, res) => {
 
     const systemPrompt = `You are a productivity scheduler. Return ONLY valid JSON — no markdown, no explanation, just raw JSON:
 {
-  "summary": "Brief 1-sentence overview of today's plan",
+  "summary": "Full detailed plan including a list of tasks for today.",
   "schedule": [
     {
       "time": "9:00 AM",
       "task": "exact task title from the list",
       "duration_hours": 1.5,
-      "priority": "high",
+      "priority": "low|medium|high|urgent",
       "task_id": "the-uuid-from-the-list"
     }
   ]
 }
 
 RULES:
+- If there are NO tasks provided, return summary: "You have no pending tasks to schedule today. Enjoy your free time!" and an empty schedule array.
 - duration_hours MUST be a NUMBER (1, 1.5, 2). Never a string.
 - Only schedule tasks from the provided list — use exact titles and IDs
 - Working hours: 9 AM to 6 PM. Include a 30-min lunch break at 12:30 PM
-- Order by priority: high first, then medium, then low
+- Order by priority: urgent first, then high, then medium, then low
 - Leave buffer between tasks`;
 
     const userMessage = `TODAY: ${new Date().toISOString().split("T")[0]}

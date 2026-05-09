@@ -212,6 +212,7 @@ export default function Dashboard({ tasks, onAddTask }) {
   const recent = [...tasks].sort((a, b) => b.id - a.id).slice(0, 5);
 
   const priorityBadge = {
+    Urgent: "bg-alert/10 text-alert border border-alert/20 font-bold animate-pulse",
     High:   "bg-alert/10 text-alert border border-alert/20",
     Medium: "bg-amber/10 text-amber border border-amber/20",
     Low:    "bg-success/10 text-success border border-success/20",

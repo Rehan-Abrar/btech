@@ -171,8 +171,15 @@ export default function AIChat({ tasks, onEventCreate, onTaskCreated, initialPro
     try {
       if (trimmed.toLowerCase().includes("schedule")) {
         const data = await generateSchedule();
-        const aiMsg = { id: Date.now() + 1, role: "assistant", text: data.summary || "Schedule generated!", timestamp: ts };
+        let replyText = data.summary || "Schedule generated!";
+        
+        if (data.schedule && data.schedule.length > 0) {
+          replyText += "\n\n**Today's Schedule:**\n" + data.schedule.map(item => `- **${item.time}**: ${item.task} (${item.duration_hours}h)`).join("\n");
+        }
+
+        const aiMsg = { id: Date.now() + 1, role: "assistant", text: replyText, timestamp: ts };
         setMessages(prev => [...prev, aiMsg]);
+        
         if (data.events?.length > 0 && onEventCreate) {
           data.events.forEach(e => onEventCreate(e));
         }

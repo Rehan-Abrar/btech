@@ -55,6 +55,7 @@ const studentLinks = [
 
 const managerLinks = [
   { to: "/",           icon: <IconDashboard />, label: "Dashboard"    },
+  { to: "/board",      icon: <IconBoard />,     label: "My Tasks"     },
   { to: "/calendar",   icon: <IconCalendar />,  label: "Calendar"     },
   { to: "/ai/schedule",icon: <IconSchedule />,  label: "Get Schedule" },
 ];

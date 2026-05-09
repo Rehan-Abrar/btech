@@ -12,6 +12,7 @@ const taskSchema = z.object({
   due_date: z.string().optional().nullable(),
   priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   status: z.enum(["todo", "in-progress", "review", "done"]).default("todo"),
+  recurring_rule: z.string().optional().nullable(),
 });
 
 const updateTaskSchema = taskSchema.partial();
@@ -77,14 +78,14 @@ router.get("/:id", async (req, res) => {
 // POST /api/tasks
 router.post("/", validate(taskSchema), async (req, res) => {
   try {
-    const { title, description, due_date, priority, status } = req.body;
+    const { title, description, due_date, priority, status, recurring_rule } = req.body;
     const userId = req.user.id;
 
     const result = await db.query(
-      `INSERT INTO tasks (user_id, title, description, due_date, priority, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO tasks (user_id, title, description, due_date, priority, status, recurring_rule)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [userId, title, description, due_date || null, priority, status]
+      [userId, title, description, due_date || null, priority, status, recurring_rule || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -97,18 +98,19 @@ router.post("/", validate(taskSchema), async (req, res) => {
 // PUT /api/tasks/:id
 router.put("/:id", validate(updateTaskSchema), async (req, res) => {
   try {
-    const { title, description, due_date, priority, status } = req.body;
+    const { title, description, due_date, priority, status, recurring_rule } = req.body;
     const userId = req.user.id;
 
     const fields = [];
     const values = [];
     let i = 1;
 
-    if (title !== undefined)       { fields.push(`title = $${i++}`);       values.push(title); }
-    if (description !== undefined) { fields.push(`description = $${i++}`); values.push(description); }
-    if (due_date !== undefined)    { fields.push(`due_date = $${i++}`);    values.push(due_date || null); }
-    if (priority !== undefined)    { fields.push(`priority = $${i++}`);    values.push(priority); }
-    if (status !== undefined)      { fields.push(`status = $${i++}`);      values.push(status); }
+    if (title !== undefined)          { fields.push(`title = $${i++}`);          values.push(title); }
+    if (description !== undefined)    { fields.push(`description = $${i++}`);    values.push(description); }
+    if (due_date !== undefined)       { fields.push(`due_date = $${i++}`);       values.push(due_date || null); }
+    if (priority !== undefined)       { fields.push(`priority = $${i++}`);       values.push(priority); }
+    if (status !== undefined)         { fields.push(`status = $${i++}`);         values.push(status); }
+    if (recurring_rule !== undefined) { fields.push(`recurring_rule = $${i++}`); values.push(recurring_rule || null); }
 
     if (fields.length === 0) return res.status(400).json({ error: "No fields to update" });
 
