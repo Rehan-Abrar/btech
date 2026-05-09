@@ -5,17 +5,14 @@ const db = require("../db");
 
 const router = express.Router();
 
-// Groq API helper
-const callGroq = async (systemPrompt, userMessage) => {
+// Groq API helper — accepts a full OpenAI-style messages array for multi-turn context
+const callGroq = async (messages) => {
   const url = "https://api.groq.com/openai/v1/chat/completions";
   const { data } = await axios.post(
     url,
     {
       model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userMessage }
-      ],
+      messages,
       temperature: 0.7,
       max_tokens: 1024,
     },
@@ -36,41 +33,82 @@ router.post("/chat", async (req, res) => {
     if (!message?.trim()) return res.status(400).json({ error: "Message is required" });
 
     const userId = req.user.id;
+    const today = new Date().toISOString().split("T")[0];
 
-    // Fetch user's tasks for context
+    // Fetch user's tasks with full context
     const tasksResult = await db.query(
-      `SELECT title, priority, status, due_date FROM tasks
-       WHERE user_id = $1 ORDER BY due_date ASC LIMIT 20`,
+      `SELECT id, title, priority, status, due_date FROM tasks
+       WHERE user_id = $1 ORDER BY
+         CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+         due_date ASC NULLS LAST
+       LIMIT 20`,
       [userId]
     );
     const tasks = tasksResult.rows;
 
-    // Save user message to chat history
+    // Compute real overdue / due-today counts for the system prompt
+    const overdueTasks   = tasks.filter(t => t.due_date && t.due_date < today && t.status !== "done");
+    const dueTodayTasks  = tasks.filter(t => t.due_date && t.due_date.toISOString?.().split("T")[0] === today || (t.due_date && String(t.due_date).startsWith(today)));
+    const pendingTasks   = tasks.filter(t => t.status !== "done");
+    const completedCount = tasks.filter(t => t.status === "done").length;
+
+    // Build rich system prompt with real computed data
+    const systemPrompt = `You are Axon — a sharp, concise AI productivity assistant embedded inside a task management platform. You have LIVE access to the user's task list below. Use it to give specific, data-driven answers.
+
+TODAY: ${today}
+
+USER'S TASKS (${tasks.length} total, ${completedCount} done, ${pendingTasks.length} pending):
+${tasks.length === 0
+  ? "  No tasks yet."
+  : tasks.map(t => {
+      const due = t.due_date ? String(t.due_date).split("T")[0] : null;
+      const isOverdue = due && due < today && t.status !== "done";
+      return `  - [${t.id}] "${t.title}" | ${t.priority} priority | ${t.status} | due: ${due || "no date"}${isOverdue ? " ⚠️ OVERDUE" : ""}`;
+    }).join("\n")}
+
+OVERDUE: ${overdueTasks.length} task(s): ${overdueTasks.map(t => `"${t.title}"`).join(", ") || "none"}
+DUE TODAY: ${dueTodayTasks.length} task(s)
+
+CAPABILITIES:
+- Answer questions about their tasks with exact data (overdue, counts, priorities, statuses)
+- Create tasks by including TASK_CREATE JSON at the END of your reply
+- Suggest what to work on next based on priority and deadlines
+- Be concise — 2-4 sentences max unless they ask for more detail
+
+TASK CREATION FORMAT (only when asked to create/add a task):
+TASK_CREATE:{"title":"...","priority":"low|medium|high","status":"todo","due_date":"YYYY-MM-DD"}
+
+Rules:
+- NEVER say you can't see their tasks — you have the full list above
+- NEVER make up tasks that don't exist
+- If they ask "what's overdue" and there are none, say exactly that with confidence
+- Reference tasks by their actual titles from the list above`;
+
+    // Save user message BEFORE fetching history (so it's included in order)
     await db.query(
       "INSERT INTO chat_history (user_id, role, message) VALUES ($1, 'user', $2)",
       [userId, message]
     );
 
-    // Fetch recent chat history for context
+    // Fetch last 20 messages (10 turns) as proper multi-turn history
     const historyResult = await db.query(
       `SELECT role, message FROM chat_history
-       WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10`,
+       WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 20`,
       [userId]
     );
-    const history = historyResult.rows.reverse();
+    // Reverse so oldest is first, exclude the message we just saved (it'll be last)
+    const historyMessages = historyResult.rows.reverse().map(h => ({
+      role: h.role === "assistant" ? "assistant" : "user",
+      content: h.message,
+    }));
 
-    const systemPrompt = `You are Axon, an AI productivity assistant. The user's current tasks are:
-${tasks.map(t => `- ${t.title} (${t.priority} priority, ${t.status}, due: ${t.due_date || "no date"})`).join("\n")}
+    // Build full messages array: system → history (includes current user msg)
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...historyMessages,
+    ];
 
-Recent conversation:
-${history.map(h => `${h.role}: ${h.message}`).join("\n")}
-
-Help the user manage their tasks. If they ask to create a task, respond with valid JSON in this format at the END of your message:
-TASK_CREATE:{"title":"...","priority":"low|medium|high","status":"todo","due_date":"YYYY-MM-DD"}
-
-Be concise, helpful, and specific to their actual tasks.`;
-
-    const aiReply = await callGroq(systemPrompt, message);
+    const aiReply = await callGroq(messages);
 
     // Parse task creation command if present
     let createdTask = null;
@@ -89,7 +127,7 @@ Be concise, helpful, and specific to their actual tasks.`;
       }
     }
 
-    // Clean response (remove the TASK_CREATE JSON from display text)
+    // Clean response (strip TASK_CREATE JSON from display text)
     const cleanReply = aiReply.replace(/TASK_CREATE:\{[\s\S]*?\}/, "").trim();
 
     // Save AI response to history
@@ -130,26 +168,35 @@ router.post("/schedule", async (req, res) => {
       return res.json({ summary: "No pending tasks found. You're all caught up! 🎉", events: [] });
     }
 
-    const systemPrompt = `You are a productivity scheduler. Return ONLY valid JSON, no other text:
+    const systemPrompt = `You are a productivity scheduler. Return ONLY valid JSON — no markdown, no explanation, just raw JSON:
 {
-  "summary": "Brief overview",
+  "summary": "Brief 1-sentence overview of today's plan",
   "schedule": [
     {
       "time": "9:00 AM",
-      "task": "Task title",
+      "task": "exact task title from the list",
       "duration_hours": 1.5,
       "priority": "high",
-      "task_id": "uuid-here"
+      "task_id": "the-uuid-from-the-list"
     }
   ]
 }
 
-IMPORTANT: duration_hours must be a NUMBER like 1, 1.5, 2. Never a string like "1 hour".`;
+RULES:
+- duration_hours MUST be a NUMBER (1, 1.5, 2). Never a string.
+- Only schedule tasks from the provided list — use exact titles and IDs
+- Working hours: 9 AM to 6 PM. Include a 30-min lunch break at 12:30 PM
+- Order by priority: high first, then medium, then low
+- Leave buffer between tasks`;
 
-    const userMessage = `Schedule these tasks for today. Start at 9 AM, end by 6 PM, include breaks.
-Tasks: ${JSON.stringify(tasks.map(t => ({ id: t.id, title: t.title, priority: t.priority, due_date: t.due_date })))}`;
+    const userMessage = `TODAY: ${new Date().toISOString().split("T")[0]}
+Schedule these pending tasks:
+${JSON.stringify(tasks.map(t => ({ id: t.id, title: t.title, priority: t.priority, due_date: t.due_date })), null, 2)}`;
 
-    const aiReply = await callGroq(systemPrompt, userMessage);
+    const aiReply = await callGroq([
+      { role: "system", content: systemPrompt },
+      { role: "user",   content: userMessage },
+    ]);
 
     let scheduleData;
     try {
@@ -203,11 +250,13 @@ router.post("/reorganize", async (req, res) => {
     );
 
     const systemPrompt = `You are a task priority optimizer. A new HIGH URGENCY task has been added: "${newTaskTitle}" (${newTaskPriority} priority).
-Analyze the existing tasks and return JSON with updated priorities:
-{"updates": [{"id": "uuid", "priority": "high|medium|low", "reason": "why"}]}
-Only return JSON.`;
+Analyze the existing tasks and return ONLY valid JSON — no markdown, no explanation:
+{"updates": [{"id": "uuid", "priority": "high|medium|low", "reason": "brief reason"}]}`;
 
-    const aiReply = await callGroq(systemPrompt, JSON.stringify(tasks.rows));
+    const aiReply = await callGroq([
+      { role: "system", content: systemPrompt },
+      { role: "user",   content: JSON.stringify(tasks.rows) },
+    ]);
 
     const match = aiReply.match(/\{[\s\S]*\}/);
     if (!match) return res.json({ updates: [], message: "No reorganization needed" });
