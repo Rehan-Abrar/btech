@@ -1,5 +1,9 @@
 # Project Log
 
+## 2026-05-09
+- Updated Day 2 plan with bug-fix instructions, revised priority order, and cut list guidance.
+- Corrected plan snippets for summary route order, events query, AI axios usage, TASK_CREATE regex, App.jsx handleMove, and Dashboard summary null safety.
+
 ## 2026-05-08
 - Created the initial Axon project skeleton.
 - Added Vite, React, Tailwind, and React Router configuration.

@@ -102,6 +102,8 @@ export default function App() {
                 <CalendarView
                   tasks={tasks}
                   events={events}
+                  onAdd={handleAdd}
+                  onEdit={handleEdit}
                 />
               }
             />

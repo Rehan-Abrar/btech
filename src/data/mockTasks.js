@@ -123,6 +123,6 @@ export const mockUser = {
   id:     1,
   name:   "Demo User",
   email:  "demo@axon.app",
-  role:   "Student",  // "Student" | "Manager"
+  role:   "Manager",  // "Student" | "Manager"
   avatar: "DU",
 };

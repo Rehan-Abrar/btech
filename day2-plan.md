@@ -28,7 +28,7 @@ The backend is a single Express app. Database is PostgreSQL. Auth uses bcrypt + 
 # In a NEW folder alongside the frontend
 mkdir axon-backend && cd axon-backend
 npm init -y
-npm install express pg bcrypt jsonwebtoken dotenv zod cors cookie-parser
+npm install express pg bcrypt jsonwebtoken dotenv zod cors cookie-parser axios
 npm install -D nodemon
 ```
 
@@ -214,10 +214,10 @@ app.get("/health", (req, res) => res.json({ status: "ok", timestamp: new Date() 
 app.use("/api/auth", authRoutes);
 
 // Protected routes — JWT required
+app.use("/api/tasks/summary", authenticateToken, summaryRoutes);
 app.use("/api/tasks", authenticateToken, taskRoutes);
 app.use("/api/ai", authenticateToken, aiRoutes);
 app.use("/api/events", authenticateToken, eventRoutes);
-app.use("/api/tasks/summary", authenticateToken, summaryRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
@@ -511,35 +511,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /api/tasks/summary — must come before /:id
-router.get("/summary", async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const today = new Date().toISOString().split("T")[0];
-
-    const result = await db.query(
-      `SELECT
-        COUNT(*) FILTER (WHERE status != 'done') AS total_active,
-        COUNT(*) FILTER (WHERE status = 'done') AS completed,
-        COUNT(*) FILTER (WHERE status = 'in-progress') AS in_progress,
-        COUNT(*) FILTER (WHERE status = 'todo') AS todo,
-        COUNT(*) FILTER (WHERE status = 'review') AS in_review,
-        COUNT(*) FILTER (WHERE due_date < $2 AND status != 'done') AS overdue,
-        COUNT(*) FILTER (WHERE priority = 'high' AND status != 'done') AS high_priority,
-        COUNT(*) FILTER (WHERE priority = 'medium' AND status != 'done') AS medium_priority,
-        COUNT(*) FILTER (WHERE priority = 'low' AND status != 'done') AS low_priority,
-        COUNT(*) AS total
-       FROM tasks WHERE user_id = $1`,
-      [userId, today]
-    );
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch summary" });
-  }
-});
-
 // GET /api/tasks/:id
 router.get("/:id", async (req, res) => {
   try {
@@ -744,8 +715,7 @@ router.get("/calendar", async (req, res) => {
         e.end_datetime,
         e.linked_task_id,
         t.priority AS task_priority,
-        t.status AS task_status,
-        t.assignee AS task_assignee
+        t.status AS task_status
        FROM events e
        LEFT JOIN tasks t ON e.linked_task_id = t.id
        WHERE ${whereClause}
@@ -893,7 +863,7 @@ useEffect(() => {
   fetchSummary().then(setSummary).catch(console.error);
 }, []);
 
-// Then use summary.total, summary.completed, summary.in_progress, summary.overdue
+// Then use summary?.total ?? 0, summary?.completed ?? 0, summary?.in_progress ?? 0, summary?.overdue ?? 0
 // in the stats cards instead of computing from tasks prop
 ```
 
@@ -926,32 +896,20 @@ const eventsForDate = (dateStr) => allEvents.filter(e => e.start_datetime?.start
 ```js
 // src/routes/ai.js
 const express = require("express");
+const axios = require("axios");
 const db = require("../db");
 
 const router = express.Router();
 
 // Gemini API helper
 const callGemini = async (systemPrompt, userMessage) => {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ parts: [{ text: userMessage }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Gemini API error: ${err}`);
-  }
-
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't generate a response.";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const { data } = await axios.post(url, {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ parts: [{ text: userMessage }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+  });
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
 };
 
 // POST /api/ai/chat
@@ -999,7 +957,7 @@ Be concise, helpful, and specific to their actual tasks.`;
 
     // Parse task creation command if present
     let createdTask = null;
-    const taskMatch = aiReply.match(/TASK_CREATE:(\{[^}]+\})/);
+    const taskMatch = aiReply.match(/TASK_CREATE:(\{[\s\S]*?\})/);
     if (taskMatch) {
       try {
         const taskData = JSON.parse(taskMatch[1]);
@@ -1015,7 +973,7 @@ Be concise, helpful, and specific to their actual tasks.`;
     }
 
     // Clean response (remove the TASK_CREATE JSON from display text)
-    const cleanReply = aiReply.replace(/TASK_CREATE:\{[^}]+\}/, "").trim();
+    const cleanReply = aiReply.replace(/TASK_CREATE:\{[\s\S]*?\}/, "").trim();
 
     // Save AI response to history
     await db.query(
@@ -1345,10 +1303,12 @@ export default function App() {
   };
 
   const handleMove = async (id, newStatus) => {
-    const statusMap = { "To Do": "todo", "In Progress": "in-progress", "Review": "review", "Done": "done" };
-    const dbStatus = statusMap[newStatus] || newStatus;
+    const toDb = { "To Do": "todo", "In Progress": "in-progress", "Review": "review", "Done": "done" };
+    const toFrontend = { "todo": "To Do", "in-progress": "In Progress", "review": "Review", "done": "Done" };
+    const dbStatus = toDb[newStatus] || newStatus;
     await updateTask(id, { status: dbStatus });
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+    // Normalize back to frontend format after DB write
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: toFrontend[dbStatus] } : t));
   };
 
   const handleEventCreate = (event) => setEvents(prev => [...prev, event]);
@@ -1433,20 +1393,189 @@ VITE_API_URL=http://localhost:3001
 
 ---
 
-## Parallel Workflow Timeline
+## Bug Fixes
 
-| Time | Person A | Person B | Person C |
-|------|----------|----------|----------|
-| 0:00–0:15 | Setup backend, run schema | Read events spec | Read AI spec + get Gemini key |
-| 0:15–1:15 | Auth routes (register/login/refresh) | Events route | AI route skeleton |
-| 1:15–2:00 | Tasks GET/POST | Summary route | AI chat endpoint |
-| 2:00–2:50 | Tasks PUT/DELETE | Wire frontend Calendar | AI schedule endpoint |
-| **2:50 — CHECKPOINT 1** | All 6 endpoints working, test with curl | Calendar shows real events | AI returns real Gemini responses |
-| 2:50–3:20 | Wire frontend tasks API | Wire frontend Dashboard summary | Wire frontend auth pages |
-| 3:20–3:50 | Wire App.jsx full Day 2 version | Wire AIChat to real API | Integration testing |
-| **3:50 — CHECKPOINT 2** | Full end-to-end working | All pages show live data | Auth + AI working |
-| 3:50–4:30 | Bonus features (if time) | Bonus features (if time) | Bonus features (if time) |
-| 4:30–5:00 | Pitch prep + final testing | Pitch prep | Pitch prep |
+### Fix 1 — Duplicate summary route
+In `src/index.js`, remove the summary mount line and keep it inside `tasks.js` only **OR** keep `summary.js` and delete the block from `tasks.js`. Cleanest solution: delete from `tasks.js`, keep `summary.js`.
+
+Also in `index.js`, fix the mount order — summary must come BEFORE the tasks wildcard:
+
+```js
+// WRONG order — /:id catches /summary first
+app.use("/api/tasks", authenticateToken, taskRoutes);
+
+// CORRECT — summary registered separately, Express sees it first
+app.use("/api/tasks/summary", authenticateToken, summaryRoutes);
+app.use("/api/tasks", authenticateToken, taskRoutes);
+```
+
+### Fix 2 — Nonexistent `assignee` column crash
+In `src/routes/events.js`, remove this line from the JOIN:
+
+```js
+// DELETE THIS LINE
+t.assignee AS task_assignee
+```
+
+Replace the full SELECT with:
+
+```sql
+SELECT
+  e.id,
+  e.title,
+  e.start_datetime,
+  e.end_datetime,
+  e.linked_task_id,
+  t.priority AS task_priority,
+  t.status AS task_status
+FROM events e
+LEFT JOIN tasks t ON e.linked_task_id = t.id
+WHERE ...
+```
+
+### Fix 3 — Status mismatch after handleMove
+In `App.jsx`, fix `handleMove`:
+
+```js
+const handleMove = async (id, newStatus) => {
+  const toDb = { "To Do": "todo", "In Progress": "in-progress", "Review": "review", "Done": "done" };
+  const toFrontend = { "todo": "To Do", "in-progress": "In Progress", "review": "Review", "done": "Done" };
+  const dbStatus = toDb[newStatus] || newStatus;
+  await updateTask(id, { status: dbStatus });
+  // Normalize back to frontend format after DB write
+  setTasks(prev => prev.map(t => t.id === id ? { ...t, status: toFrontend[dbStatus] } : t));
+};
+```
+
+### Fix 4 — Node fetch reliability
+Install axios and replace `fetch` in `src/routes/ai.js`:
+
+```bash
+npm install axios
+```
+
+```js
+// Replace the callGemini function
+const axios = require("axios");
+
+const callGemini = async (systemPrompt, userMessage) => {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const { data } = await axios.post(url, {
+    system_instruction: { parts: [{ text: systemPrompt }] },
+    contents: [{ parts: [{ text: userMessage }] }],
+    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+  });
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
+};
+```
+
+### Fix 5 — Fragile TASK_CREATE regex
+In `src/routes/ai.js`, replace:
+
+```js
+// FRAGILE — breaks on multiline JSON
+const taskMatch = aiReply.match(/TASK_CREATE:(\{[^}]+\})/);
+
+// FIXED — handles multiline
+const taskMatch = aiReply.match(/TASK_CREATE:(\{[\s\S]*?\})/);
+```
+
+### Fix 6 — Null safety on summary in Dashboard
+
+In `Dashboard.jsx`, every summary value needs a fallback:
+
+```jsx
+// Never this:
+<p>{summary.total}</p>
+
+// Always this:
+<p>{summary?.total ?? 0}</p>
+```
+
+---
+
+## Revised Priority Order for Day 2
+
+Forget the parallel timeline from the original plan. This is what actually matters:
+
+### Phase 1 — First 90 minutes (project is alive or dead here)
+Everyone focuses on getting this single flow working end-to-end:
+
+```
+Register → Login → Create Task → Fetch Tasks → Show on Board
+```
+
+What to build: `db.js`, `index.js`, `auth.js`, `tasks.js`, frontend `auth.js` + `tasks.js` + App.jsx wiring.
+
+Don't touch AI, events, or calendar until this works.
+
+### Phase 2 — Next 90 minutes (what judges actually see)
+```
+AI Chat → task created → board updates
+AI Schedule → calendar updates
+Dashboard shows live stats
+```
+
+What to build: `ai.js` route, `events.js`, `summary.js`, wire `AIChat.jsx`.
+
+### Phase 3 — Last 60 minutes (if everything works)
+Polish, voice input, analytics. If Phase 2 isn't solid, skip Phase 3 entirely.
+
+---
+
+## What to Cut If Time Gets Short
+
+| Cut first | Never cut |
+|---|---|
+| Refresh token DB table — just use stateless JWT | Auth (any form) |
+| Cursor pagination — use simple `LIMIT 50` | Tasks CRUD |
+| Zod validation — just use basic checks | AI chat |
+| Timezone support | AI schedule |
+| Analytics page | Live frontend integration |
+| Cookie security flags | |
+
+For the demo, the one moment that wins it:
+
+> User types: *"I need to prepare Software Engineering presentation tomorrow"*
+> → AI creates task → appears on Kanban → appears on Calendar → schedule generates
+
+Rehearse that exact flow at least twice before the pitch.
+
+Yes, all fixes are aligned. Let me map each one explicitly:
+
+---
+
+## Fix-by-Fix Verification
+
+**Fix 1 — Duplicate summary route**
+Requirement: `GET /api/tasks/summary` (5 pts). The duplicate caused one to shadow the other — now only one exists, mounted before `/:id` so Express doesn't eat it as a task ID param. ✅
+
+**Fix 2 — Nonexistent assignee column**
+Requirement: DB schema has no `assignee` field. Schema defines Tasks as: `id, user_id, title, description, due_date, priority, status`. The crash would have killed the calendar endpoint (4 pts) entirely. ✅
+
+**Fix 3 — Status mismatch after handleMove**
+Requirement: Task filtering by priority and status, working end-to-end (must-have). If status gets corrupted after a move, the Kanban board breaks visually and filtering stops working. The bidirectional normalization map fixes this. ✅
+
+**Fix 4 — axios over fetch**
+Requirement: All AI endpoints must return real responses. If `fetch` silently fails on the lab's Node version, the AI chat (10 pts) and AI schedule (8 pts) — your two highest-value endpoints — both die. axios is safer under pressure. ✅
+
+**Fix 5 — Multiline TASK_CREATE regex**
+Requirement: `POST /api/ai/chat` must parse task creation commands. Gemini often returns formatted JSON across multiple lines. The old regex `[^}]+` stops at the first `}` it finds, breaking the parse. The new `[\s\S]*?` handles multiline correctly. ✅
+
+**Fix 6 — Null safety on summary**
+Requirement: Dashboard summary cards with live task statistics (must-have). If the fetch hasn't returned yet and the component tries to read `summary.total`, React crashes the entire page — wiping your demo. Optional chaining `summary?.total ?? 0` keeps the UI alive during load. ✅
+
+---
+
+## One Thing ChatGPT Missed
+
+The revised phase order also implicitly fixes something the original plan got wrong: it had all three people working in parallel from minute zero, which means if Person A's `db.js` or auth middleware has a bug, Person B and C's work can't be tested at all.
+
+The new Phase 1 approach — everyone converges on the auth + tasks flow first — means you have a working app after 90 minutes regardless of what happens in Phase 2. That's the right call for a hackathon.
+
+---
+
+Everything checks out. The plan as corrected covers all 6 scored endpoints, all 7 must-haves, the correct DB schema, and a demo flow that hits the highest-value features first.
 
 ---
 

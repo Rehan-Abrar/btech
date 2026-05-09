@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+// src/components/CalendarView.jsx
+// Person B owns this component — production stub for Person A integration.
+// Prop contract: tasks={Task[]}, events={Event[]}
 
-const STATUSES = ["To Do", "In Progress", "Review", "Done"];
-const PRIORITIES = ["High", "Medium", "Low"];
+import { useMemo, useState } from "react";
+import EmptyState from "./EmptyState";
 
-// AXON Color Palette
 const COLORS = {
   navyBlue: "#0A2647",
   mustardGold: "#D4AF37",
@@ -17,338 +18,274 @@ const COLORS = {
   ironGray: "#5A6380",
 };
 
-export default function TaskModal({ task, onSave, onClose }) {
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    priority: "Medium",
-    status: "To Do",
-    due: "",
-    assignee: "",
-    tags: [],
+const STATUS_COLOR = {
+  Done: COLORS.taskGreen,
+  Review: COLORS.cautionAmber,
+  "In Progress": COLORS.mustardGold,
+  "To Do": COLORS.skyBlue,
+};
+
+const ChevLeft = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
+);
+const ChevRight = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="9 18 15 12 9 6" /></svg>
+);
+
+const pad = (n) => String(n).padStart(2, "0");
+const toDateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+export default function CalendarView({ tasks = [], events = [], onAdd, onEdit }) {
+  const todayStr = toDateStr(new Date());
+
+  const [current, setCurrent] = useState(() => {
+    const t = new Date();
+    return new Date(t.getFullYear(), t.getMonth(), 1);
   });
+  const [selected, setSelected] = useState(todayStr);
 
-  const [errors, setErrors] = useState({});
+  const year = current.getFullYear();
+  const month = current.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const monthName = current.toLocaleString("default", { month: "long", year: "numeric" });
 
-  useEffect(() => {
-    if (task) {
-      setForm(task);
-    } else {
-      // Set default due date to tomorrow
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      setForm(prev => ({
-        ...prev,
-        due: tomorrow.toISOString().split("T")[0],
-      }));
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map();
+    for (const e of events) {
+      const dateStr = typeof e.start === "string" ? e.start.slice(0, 10) : "";
+      if (!dateStr) continue;
+      if (!map.has(dateStr)) map.set(dateStr, []);
+      map.get(dateStr).push(e);
     }
-    setErrors({});
-  }, [task]);
 
-  const handleChange = (field, value) => {
-    setForm(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
-  };
-
-  const validate = () => {
-    const newErrors = {};
-    if (!form.title.trim()) newErrors.title = "Task title required.";
-    if (!form.due) newErrors.due = "Due date required.";
-    
-    const selectedDate = new Date(form.due);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (selectedDate < today) {
-      newErrors.due = "Due date cannot be in the past.";
+    // stable ordering: start time then title
+    for (const [k, list] of map.entries()) {
+      list.sort((a, b) => {
+        const as = String(a.start ?? "");
+        const bs = String(b.start ?? "");
+        if (as < bs) return -1;
+        if (as > bs) return 1;
+        return String(a.title ?? "").localeCompare(String(b.title ?? ""));
+      });
+      map.set(k, list);
     }
-    return newErrors;
-  };
 
-  const handleSubmit = () => {
-    const newErrors = validate();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+    // Also inject any tasks that don't have an explicit event associated with them!
+    const taskIdsWithEvents = new Set(events.map(e => e.task_id));
+    for (const t of tasks) {
+      if (!taskIdsWithEvents.has(t.id) && t.due) {
+        const dateStr = t.due;
+        if (!map.has(dateStr)) map.set(dateStr, []);
+        map.get(dateStr).push({
+          id: `task-${t.id}`,
+          task_id: t.id,
+          title: t.title,
+          start: `${t.due}T00:00`,
+          end: `${t.due}T23:59`,
+          isPseudoEvent: true
+        });
+      }
     }
-    onSave(form);
-  };
 
-  const isEditMode = !!task;
+    return map;
+  }, [events, tasks]);
+
+  const selectedEvents = eventsByDate.get(selected) ?? [];
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(26, 26, 26, 0.6)" }}
-    >
-      <div 
-        className="w-full max-w-lg rounded-2xl shadow-2xl p-8 relative border"
-        style={{
-          backgroundColor: COLORS.navyBlue,
-          borderColor: COLORS.steelRim,
-        }}
-      >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-6 right-6 text-opacity-60 hover:text-opacity-100 transition text-2xl font-light"
-          style={{ color: COLORS.skyBlue }}
-        >
-          ×
-        </button>
-
-        {/* Modal Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            {/* AXON abstract mark (neural node) */}
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style={{ backgroundColor: COLORS.mustardGold }}
-              aria-hidden="true"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="3" fill={COLORS.navyBlue} />
-                <line x1="12" y1="9"  x2="8"  y2="5"  stroke={COLORS.navyBlue} strokeWidth="2" strokeLinecap="round"/>
-                <line x1="12" y1="9"  x2="16" y2="5"  stroke={COLORS.navyBlue} strokeWidth="2" strokeLinecap="round"/>
-                <line x1="12" y1="15" x2="8"  y2="19" stroke={COLORS.navyBlue} strokeWidth="2" strokeLinecap="round"/>
-                <line x1="12" y1="15" x2="16" y2="19" stroke={COLORS.navyBlue} strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-            </div>
-
-            <h2 
-              className="text-2xl font-medium"
-              style={{ color: COLORS.pureWhite }}
-            >
-              {isEditMode ? `Edit task` : `Create new task`}
-            </h2>
-          </div>
-
-          <p 
-            className="text-sm mt-2 font-regular"
-            style={{ color: COLORS.skyBlue }}
-          >
-            {isEditMode ? `Modify task details below.` : `Set up your task below. AI will help with scheduling.`}
+    <div className="p-8 max-w-6xl mx-auto fade-in">
+      <div className="flex items-end justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-medium" style={{ color: COLORS.pureWhite }}>Calendar</h1>
+          <p className="text-sm" style={{ color: COLORS.skyBlue }}>
+            Month view. Select a date to review scheduled work.
           </p>
         </div>
+        {onAdd && (
+          <button
+            id="calendar-new-task-btn"
+            onClick={onAdd}
+            className="flex items-center gap-2 bg-gold text-navy font-medium text-sm
+                       rounded-pill py-2.5 px-5
+                       hover:brightness-110 active:scale-95 transition-all"
+            style={{ backgroundColor: COLORS.mustardGold, color: COLORS.navyBlue, borderRadius: "9999px" }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New task
+          </button>
+        )}
+      </div>
 
-        {/* Form Fields */}
-        <div className="flex flex-col gap-5">
-          {/* Title Field */}
-          <div>
-            <label 
-              className="block text-xs font-medium mb-2 uppercase tracking-wide"
-              style={{ color: COLORS.skyBlue }}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Month grid */}
+        <section className="lg:col-span-2 rounded-2xl border p-5 backdrop-blur-md" style={{ backgroundColor: "rgba(10,38,71,0.45)", borderColor: COLORS.steelRim }}>
+          {/* Header / nav */}
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={() => setCurrent(new Date(year, month - 1, 1))}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition"
+              style={{ backgroundColor: "rgba(30,58,95,0.35)", color: COLORS.skyBlue, border: `1px solid ${COLORS.steelRim}` }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.mustardGold; e.currentTarget.style.color = COLORS.mustardGold; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.steelRim; e.currentTarget.style.color = COLORS.skyBlue; }}
+              aria-label="Previous month"
             >
-              Task Title *
-            </label>
-            <input
-              type="text"
-              value={form.title}
-              onChange={e => handleChange("title", e.target.value)}
-              placeholder="E.g., Design landing page mockups"
-              className="w-full px-4 py-3 rounded-full text-sm transition outline-none"
-              style={{
-                backgroundColor: COLORS.richBlack,
-                borderWidth: "1px",
-                borderColor: errors.title ? COLORS.alertRed : COLORS.mustardGold,
-                color: COLORS.pureWhite,
-              }}
-              onFocus={e => e.target.style.borderColor = COLORS.mustardGold}
-            />
-            {errors.title && (
-              <p className="text-xs mt-1.5 font-medium" style={{ color: COLORS.alertRed }}>
-                {errors.title}
-              </p>
+              <ChevLeft />
+            </button>
+
+            <h2 className="text-sm font-medium" style={{ color: COLORS.pureWhite }}>{monthName}</h2>
+
+            <button
+              type="button"
+              onClick={() => setCurrent(new Date(year, month + 1, 1))}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition"
+              style={{ backgroundColor: "rgba(30,58,95,0.35)", color: COLORS.skyBlue, border: `1px solid ${COLORS.steelRim}` }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = COLORS.mustardGold; e.currentTarget.style.color = COLORS.mustardGold; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = COLORS.steelRim; e.currentTarget.style.color = COLORS.skyBlue; }}
+              aria-label="Next month"
+            >
+              <ChevRight />
+            </button>
+          </div>
+
+          {/* Weekdays */}
+          <div className="grid grid-cols-7 text-xs text-center mb-2" style={{ color: COLORS.ironGray }}>
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+              <div key={d} className="py-1">{d}</div>
+            ))}
+          </div>
+
+          {/* Grid */}
+          <div className="grid grid-cols-7 gap-2">
+            {Array(firstDay).fill(null).map((_, i) => (
+              <div key={`pad-${i}`} className="min-h-[88px]" />
+            ))}
+
+            {Array(daysInMonth).fill(null).map((_, i) => {
+              const day = i + 1;
+              const dateStr = `${year}-${pad(month + 1)}-${pad(day)}`;
+              const dayEvents = eventsByDate.get(dateStr) ?? [];
+              const isToday = dateStr === todayStr;
+              const isSelected = dateStr === selected;
+
+              const baseBorder = isSelected
+                ? COLORS.mustardGold
+                : isToday
+                  ? "rgba(212,175,55,0.55)"
+                  : COLORS.steelRim;
+
+              const bg = isSelected
+                ? "rgba(212,175,55,0.10)"
+                : "rgba(26,26,26,0.30)";
+
+              return (
+                <button
+                  key={dateStr}
+                  type="button"
+                  onClick={() => setSelected(dateStr)}
+                  className="text-left rounded-2xl border p-2 min-h-[88px] transition"
+                  style={{ backgroundColor: bg, borderColor: baseBorder }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium" style={{ color: isToday ? COLORS.mustardGold : COLORS.pureWhite }}>
+                      {day}
+                    </span>
+                    {dayEvents.length > 0 && (
+                      <span className="text-[11px] font-mono" style={{ color: COLORS.skyBlue }}>
+                        {dayEvents.length}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Compact task chips (max 2) */}
+                  <div className="mt-2 space-y-1">
+                    {dayEvents.slice(0, 2).map((ev) => {
+                      const linked = taskById.get(ev.task_id);
+                      const chipColor = linked?.status ? (STATUS_COLOR[linked.status] ?? COLORS.mustardGold) : COLORS.mustardGold;
+                      return (
+                        <div
+                          key={ev.id}
+                          className="flex items-center gap-2 rounded-full px-2 py-1 border"
+                          style={{ borderColor: "rgba(30,58,95,0.8)", backgroundColor: "rgba(10,38,71,0.75)" }}
+                          title={ev.title}
+                        >
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: chipColor }} />
+                          <span className="text-[11px] truncate" style={{ color: COLORS.skyBlue }}>
+                            {ev.title}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {dayEvents.length > 2 && (
+                      <div className="text-[11px]" style={{ color: COLORS.ironGray }}>
+                        +{dayEvents.length - 2} more
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Side panel (selected day) */}
+        <aside className="rounded-2xl border p-5 backdrop-blur-md" style={{ backgroundColor: "rgba(10,38,71,0.45)", borderColor: COLORS.steelRim }}>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-sm font-medium" style={{ color: COLORS.pureWhite }}>Scheduled</h3>
+              <p className="text-xs font-mono mt-1" style={{ color: COLORS.ironGray }}>{selected}</p>
+            </div>
+            {selected === todayStr && (
+              <span className="text-[11px] rounded-full px-3 py-1 border" style={{ color: COLORS.mustardGold, borderColor: "rgba(212,175,55,0.55)" }}>
+                Today
+              </span>
             )}
           </div>
 
-          {/* Description Field */}
-          <div>
-            <label 
-              className="block text-xs font-medium mb-2 uppercase tracking-wide"
-              style={{ color: COLORS.skyBlue }}
-            >
-              Description
-            </label>
-            <textarea
-              value={form.description}
-              onChange={e => handleChange("description", e.target.value)}
-              rows={3}
-              placeholder="What needs to be done? Add context, requirements, or notes here."
-              className="w-full px-4 py-3 rounded-2xl text-sm transition outline-none resize-none"
-              style={{
-                backgroundColor: COLORS.richBlack,
-                borderWidth: "1px",
-                borderColor: COLORS.mustardGold,
-                color: COLORS.pureWhite,
-              }}
-            />
-          </div>
+          {selectedEvents.length === 0 ? (
+            <EmptyState message="No tasks scheduled on this date" small />
+          ) : (
+            <div className="space-y-3">
+              {selectedEvents.map((ev) => {
+                const linked = taskById.get(ev.task_id);
+                const statusColor = linked?.status ? (STATUS_COLOR[linked.status] ?? COLORS.mustardGold) : COLORS.mustardGold;
+                return (
+                  <div
+                    key={ev.id}
+                    onClick={() => linked && onEdit && onEdit(linked)}
+                    className={`rounded-2xl border p-4 ${linked ? "cursor-pointer hover:bg-white/10 transition-colors" : ""}`}
+                    style={{ borderColor: COLORS.steelRim, backgroundColor: "rgba(26,26,26,0.30)" }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: statusColor }} />
+                      <p className="text-sm font-medium truncate" style={{ color: COLORS.pureWhite }}>
+                        {ev.title}
+                      </p>
+                    </div>
 
-          {/* Priority & Status Row */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Priority Dropdown */}
-            <div>
-              <label 
-                className="block text-xs font-medium mb-2 uppercase tracking-wide"
-                style={{ color: COLORS.skyBlue }}
-              >
-                Priority
-              </label>
-              <select
-                value={form.priority}
-                onChange={e => handleChange("priority", e.target.value)}
-                className="w-full px-4 py-3 rounded-full text-sm transition outline-none appearance-none font-regular"
-                style={{
-                  backgroundColor: COLORS.richBlack,
-                  borderWidth: "1px",
-                  borderColor: COLORS.mustardGold,
-                  color: COLORS.pureWhite,
-                }}
-              >
-                {PRIORITIES.map(p => (
-                  <option key={p} value={p} style={{ backgroundColor: COLORS.navyBlue, color: COLORS.pureWhite }}>
-                    {p}
-                  </option>
-                ))}
-              </select>
+                    {!ev.isPseudoEvent && (
+                      <p className="text-xs font-mono mt-2" style={{ color: COLORS.skyBlue }}>
+                        {String(ev.start).slice(11)} – {String(ev.end).slice(11)}
+                      </p>
+                    )}
+
+                    {linked && (
+                      <p className="text-xs mt-2" style={{ color: COLORS.ironGray }}>
+                        {linked.assignee} · {linked.status} · {linked.priority}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-
-            {/* Status Dropdown */}
-            <div>
-              <label 
-                className="block text-xs font-medium mb-2 uppercase tracking-wide"
-                style={{ color: COLORS.skyBlue }}
-              >
-                Status
-              </label>
-              <select
-                value={form.status}
-                onChange={e => handleChange("status", e.target.value)}
-                className="w-full px-4 py-3 rounded-full text-sm transition outline-none appearance-none font-regular"
-                style={{
-                  backgroundColor: COLORS.richBlack,
-                  borderWidth: "1px",
-                  borderColor: COLORS.mustardGold,
-                  color: COLORS.pureWhite,
-                }}
-              >
-                {STATUSES.map(s => (
-                  <option key={s} value={s} style={{ backgroundColor: COLORS.navyBlue, color: COLORS.pureWhite }}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Due Date & Assignee Row */}
-          <div className="grid grid-cols-2 gap-4">
-            {/* Due Date Field */}
-            <div>
-              <label 
-                className="block text-xs font-medium mb-2 uppercase tracking-wide"
-                style={{ color: COLORS.skyBlue }}
-              >
-                Due Date *
-              </label>
-              <input
-                type="date"
-                value={form.due}
-                onChange={e => handleChange("due", e.target.value)}
-                className="w-full px-4 py-3 rounded-full text-sm transition outline-none"
-                style={{
-                  backgroundColor: COLORS.richBlack,
-                  borderWidth: "1px",
-                  borderColor: errors.due ? COLORS.alertRed : COLORS.mustardGold,
-                  color: COLORS.pureWhite,
-                  colorScheme: "dark",
-                }}
-              />
-              {errors.due && (
-                <p className="text-xs mt-1.5 font-medium" style={{ color: COLORS.alertRed }}>
-                  {errors.due}
-                </p>
-              )}
-            </div>
-
-            {/* Assignee Field */}
-            <div>
-              <label 
-                className="block text-xs font-medium mb-2 uppercase tracking-wide"
-                style={{ color: COLORS.skyBlue }}
-              >
-                Assignee
-              </label>
-              <input
-                type="text"
-                value={form.assignee}
-                onChange={e => handleChange("assignee", e.target.value)}
-                placeholder="E.g., Alex, Sam"
-                className="w-full px-4 py-3 rounded-full text-sm transition outline-none"
-                style={{
-                  backgroundColor: COLORS.richBlack,
-                  borderWidth: "1px",
-                  borderColor: COLORS.mustardGold,
-                  color: COLORS.pureWhite,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Footer Actions */}
-        <div className="flex gap-3 mt-8 justify-end">
-          {/* Cancel Button */}
-          <button
-            onClick={onClose}
-            className="px-6 py-3 text-sm font-medium rounded-full transition border"
-            style={{
-              backgroundColor: "transparent",
-              borderColor: COLORS.steelRim,
-              color: COLORS.pureWhite,
-            }}
-            onMouseEnter={e => {
-              e.target.style.borderColor = COLORS.mustardGold;
-              e.target.style.backgroundColor = "rgba(30,58,95,0.35)"; // Steel Rim tint
-            }}
-            onMouseLeave={e => {
-              e.target.style.borderColor = COLORS.steelRim;
-              e.target.style.backgroundColor = "transparent";
-            }}
-          >
-            Cancel
-          </button>
-
-          {/* Save / Create Button */}
-          <button
-            onClick={handleSubmit}
-            className="px-6 py-3 text-sm font-medium rounded-full transition"
-            style={{
-              backgroundColor: COLORS.mustardGold,
-              color: COLORS.navyBlue,
-              boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-            }}
-            onMouseEnter={e => {
-              e.target.style.backgroundColor = "#E5C158";
-              e.target.style.boxShadow = "0 10px 28px rgba(0,0,0,0.30)";
-            }}
-            onMouseLeave={e => {
-              e.target.style.backgroundColor = COLORS.mustardGold;
-              e.target.style.boxShadow = "0 8px 24px rgba(0,0,0,0.25)";
-            }}
-          >
-            {isEditMode ? "Save changes" : "Create task"}
-          </button>
-        </div>
-
-        {/* AI Hint */}
-        <p 
-          className="text-xs mt-6 text-center font-regular italic"
-          style={{ color: COLORS.ironGray }}
-        >
-          ✦ AXON will auto-schedule this task once created.
-        </p>
+          )}
+        </aside>
       </div>
     </div>
   );
