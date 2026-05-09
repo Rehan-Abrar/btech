@@ -4,6 +4,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import gradiantBg from "../gradiant.png";
+import Logo from "../components/Logo";
 import image1 from "../image1.jpeg";
 import image2 from "../image2.jpeg";
 
@@ -44,8 +45,7 @@ export default function Landing() {
               className="flex items-center gap-2 text-white font-medium"
               aria-label="AXON"
             >
-              <span className="text-gold">⚡</span>
-              <span className="tracking-wide lowercase">axon</span>
+              <Logo size={24} fontSize="18px" />
             </button>
 
             <button
@@ -100,7 +100,7 @@ export default function Landing() {
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 type="button"
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/login")}
                 className="rounded-pill px-10 py-3 bg-gold text-navy text-sm font-semibold hover:brightness-110 active:scale-95 transition"
               >
                 Launch dashboard
@@ -145,7 +145,7 @@ export default function Landing() {
             >
               <div
                 className="absolute inset-0 bg-center bg-cover"
-                style={{ backgroundImage: `url(${image1})`, opacity: 0.65 }}
+                style={{ backgroundImage: `url(${image1})`, opacity: 0.55 }}
               />
               <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.35)" }} />
               <div className="relative min-h-[60vh] md:min-h-[72vh] flex items-center justify-end px-6 md:px-12 py-12">
@@ -168,7 +168,7 @@ export default function Landing() {
             >
               <div
                 className="absolute inset-0 bg-center bg-cover"
-                style={{ backgroundImage: `url(${image2})`, opacity: 0.7 }}
+                style={{ backgroundImage: `url(${image2})`, opacity: 0.55 }}
               />
               <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.35)" }} />
               <div className="relative min-h-[60vh] md:min-h-[72vh] flex items-center justify-start px-6 md:px-12 py-12">
@@ -191,7 +191,7 @@ export default function Landing() {
             >
               <div
                 className="absolute inset-0 bg-center bg-cover"
-                style={{ backgroundImage: `url(${image1})`, opacity: 0.65 }}
+                style={{ backgroundImage: `url(${image1})`, opacity: 0.55 }}
               />
               <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.35)" }} />
               <div className="relative min-h-[60vh] md:min-h-[72vh] flex items-center justify-end px-6 md:px-12 py-12">

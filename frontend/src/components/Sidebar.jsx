@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import { NavLink }  from "react-router-dom";
+import Logo from "./Logo";
 
 // ── SVG icon components (no emoji, professional) ──────────────
 const IconDashboard = () => (
@@ -45,15 +46,6 @@ const IconLogout = () => (
     <line x1="21" y1="12" x2="9" y2="12"/>
   </svg>
 );
-const IconAxon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="3" fill="#D4AF37"/>
-    <line x1="12" y1="9"  x2="7"  y2="4"  stroke="#D4AF37" strokeWidth="1.8" strokeLinecap="round"/>
-    <line x1="12" y1="9"  x2="17" y2="4"  stroke="#D4AF37" strokeWidth="1.8" strokeLinecap="round"/>
-    <line x1="12" y1="15" x2="7"  y2="20" stroke="#D4AF37" strokeWidth="1.8" strokeLinecap="round"/>
-    <line x1="12" y1="15" x2="17" y2="20" stroke="#D4AF37" strokeWidth="1.8" strokeLinecap="round"/>
-  </svg>
-);
 
 const studentLinks = [
   { to: "/",     icon: <IconDashboard />, label: "Dashboard" },
@@ -81,22 +73,8 @@ export default function Sidebar({ user, onAddTask, onLogout }) {
       `}
       style={{ minHeight: "100vh", background: "rgba(10,38,71,0.45)" }}
     >
-      {/* ── Logo ──────────────────────────────────────────── */}
-      <div className={`flex items-center gap-3 px-4 py-5 border-b border-steel ${collapsed ? "justify-center" : ""}`}>
-        <IconAxon />
-        {!collapsed && (
-          <div>
-            <span
-              className="text-gold font-semibold tracking-widest text-sm uppercase"
-              style={{ letterSpacing: "0.12em" }}
-            >
-              AXON
-            </span>
-            <p className="text-iron text-xs font-mono mt-0.5" style={{ fontSize: "10px" }}>
-              AI Task Automation
-            </p>
-          </div>
-        )}
+      <div className={`px-4 py-5 border-b border-steel ${collapsed ? "flex justify-center" : ""}`}>
+        <Logo collapsed={collapsed} />
       </div>
 
       {/* ── New Task button ───────────────────────────────── */}

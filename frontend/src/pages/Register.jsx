@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { register } from "../api/auth";
+import Logo from "../components/Logo";
+import gradiantBg from "../gradiant.png";
 
 const AXON = {
   bg: '#1A1A1A',
@@ -285,56 +287,27 @@ export default function Register({ onLogin }) {
         <div
           style={{
             background: AXON.surface,
+            backgroundImage: `url(${gradiantBg})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             border: `1px solid ${AXON.border}`,
             padding: '46px',
             borderRadius: '24px',
             boxShadow: '0 12px 40px rgba(0,0,0,0.35)',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          {/* Logo */}
+          {/* Subtle overlay to keep text readable on top of gradient */}
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,38,71,0.7)', zIndex: 0 }} />
+
+          <div style={{ position: 'relative', zIndex: 1 }}>
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
               marginBottom: '10px',
             }}
           >
-            <svg
-              width="33"
-              height="33"
-              viewBox="0 0 24 24"
-              fill="none"
-            >
-              <path
-                d="M13.2 2L5.8 13H11L9.8 22L18.2 10.8H13.6L13.2 2Z"
-                fill={AXON.primary}
-              />
-            </svg>
-
-            <div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: '30px',
-                  fontWeight: '700',
-                  color: AXON.primary,
-                  letterSpacing: '0.03em',
-                }}
-              >
-                AXON
-              </h1>
-
-              <p
-                style={{
-                  margin: '4px 0 0 0',
-                  fontSize: '13px',
-                  color: 'rgba(255,255,255,0.65)',
-                }}
-              >
-                Intelligent AI automation workspace
-              </p>
-            </div>
+            <Logo size={32} fontSize="28px" />
           </div>
 
           <div style={{ marginTop: '34px' }}>
@@ -555,6 +528,7 @@ export default function Register({ onLogin }) {
               </p>
             </>
           )}
+          </div>
         </div>
       </div>
     </div>
