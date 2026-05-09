@@ -11,6 +11,7 @@ import KanbanBoard  from "./components/KanbanBoard";
 import CalendarView from "./components/CalendarView";
 import AIChat       from "./components/AIChat";
 import TaskModal    from "./components/TaskModal";
+import Landing      from "./pages/Landing";
 import Login        from "./pages/Login";
 import Register     from "./pages/Register";
 import { fetchTasks, createTask, updateTask, deleteTask } from "./api/tasks";
@@ -202,7 +203,7 @@ export default function App() {
                 path="/"
                 element={isLoggedIn
                   ? <Dashboard tasks={displayTasks} onAddTask={handleAdd} />
-                  : <Navigate to="/login" replace />}
+                  : <Landing />}
               />
               <Route
                 path="/board"
