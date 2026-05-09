@@ -1,7 +1,7 @@
 // src/components/AIChat.jsx
 import { useEffect, useRef, useState, useCallback } from "react";
 import ChatBubble from "./ChatBubble";
-import { chatWithAI, generateSchedule } from "../api/ai";
+import { chatWithAI, generateSchedule, getChatHistory } from "../api/ai";
 
 const SUGGESTIONS = [
   "Generate my schedule for today",
@@ -117,6 +117,30 @@ export default function AIChat({ tasks, onEventCreate, onTaskCreated, initialPro
   const [voiceError, setVoiceError] = useState("");
   const bottomRef   = useRef(null);
   const sentInitial = useRef(false);
+
+  // Load chat history on mount
+  useEffect(() => {
+    getChatHistory()
+      .then(hist => {
+        if (hist && hist.length > 0) {
+          const formatted = hist.map((msg, i) => {
+            const date = new Date(msg.timestamp);
+            const ts = isNaN(date.getTime()) 
+              ? new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            return {
+              id: Date.now() + i,
+              role: msg.role,
+              text: msg.message,
+              timestamp: ts,
+            };
+          });
+          // Prepend the initial greeting if not already present
+          setMessages([initialMessages[0], ...formatted]);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const handleVoiceResult = useCallback((text) => {
     setInput(text);

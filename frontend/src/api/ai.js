@@ -24,3 +24,12 @@ export const generateSchedule = async () => {
   if (!res.ok) throw new Error("Schedule generation failed");
   return res.json(); // { summary, schedule, events }
 };
+
+export const getChatHistory = async () => {
+  const res = await fetch(`${BASE}/api/ai/history`, {
+    method: "GET",
+    headers: authHeader(),
+  });
+  if (!res.ok) throw new Error("Failed to fetch chat history");
+  return res.json();
+};

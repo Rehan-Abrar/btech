@@ -71,14 +71,18 @@ DUE TODAY: ${dueTodayTasks.length} task(s)
 
 CAPABILITIES:
 - Answer questions about their tasks with exact data (overdue, counts, priorities, statuses)
-- Create tasks by including TASK_CREATE JSON at the END of your reply
+- Create tasks for the user if they ask (e.g. "Create a task called X").
 - Suggest what to work on next based on priority and deadlines
 - Be concise — 2-4 sentences max unless they ask for more detail
 
-TASK CREATION FORMAT (only when asked to create/add a task):
+TASK CREATION (CRITICAL RULES):
+If the user asks you to create or add a task, you MUST do BOTH of these:
+1. Say a polite conversational confirmation (e.g., "I've created the task for you.")
+2. Append EXACTLY this JSON format at the very END of your message (do not wrap in markdown):
 TASK_CREATE:{"title":"...","priority":"low|medium|high","status":"todo","due_date":"YYYY-MM-DD"}
 
 Rules:
+- NEVER mention the TASK_CREATE JSON format, "JSON", or how you create tasks to the user. Do it silently behind the scenes.
 - NEVER say you can't see their tasks — you have the full list above
 - NEVER make up tasks that don't exist
 - If they ask "what's overdue" and there are none, say exactly that with confidence
@@ -128,7 +132,15 @@ Rules:
     }
 
     // Clean response (strip TASK_CREATE JSON from display text)
-    const cleanReply = aiReply.replace(/TASK_CREATE:\{[\s\S]*?\}/, "").trim();
+    let cleanReply = aiReply.replace(/TASK_CREATE:\{[\s\S]*?\}/, "").trim();
+
+    // If reply is empty but a task was created, generate a confirmation message
+    if (!cleanReply && createdTask) {
+      const due = createdTask.due_date ? ` due on ${String(createdTask.due_date).split("T")[0]}` : "";
+      cleanReply = `✓ Created task "${createdTask.title}" with ${createdTask.priority} priority${due}.`;
+    } else if (!cleanReply) {
+      cleanReply = "Done!";
+    }
 
     // Save AI response to history
     await db.query(
@@ -144,6 +156,24 @@ Rules:
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "AI chat failed", details: err.message });
+  }
+});
+
+// GET /api/ai/history — load past chat messages for a user (for frontend persistence)
+router.get("/history", async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await db.query(
+      `SELECT role, message, timestamp FROM chat_history
+       WHERE user_id = $1
+       ORDER BY timestamp ASC
+       LIMIT 100`,
+      [userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch history" });
   }
 });
 
