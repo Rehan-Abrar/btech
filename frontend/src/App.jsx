@@ -211,7 +211,7 @@ export default function App() {
               <Route
                 path="/"
                 element={isLoggedIn
-                  ? <Dashboard tasks={displayTasks} onAddTask={handleAdd} />
+                  ? <Dashboard user={currentUser} tasks={displayTasks} onAddTask={handleAdd} />
                   : <Landing />}
               />
               <Route

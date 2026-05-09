@@ -138,7 +138,7 @@ function CompletionRing({ done, total }) {
 }
 
 // ── Main Dashboard ────────────────────────────────────────────
-export default function Dashboard({ tasks, onAddTask }) {
+export default function Dashboard({ user, tasks, onAddTask }) {
   const today = new Date().toISOString().split("T")[0];
   const [summary, setSummary] = useState(null);
 
@@ -152,6 +152,13 @@ export default function Dashboard({ tasks, onAddTask }) {
   const inProg   = summary?.in_progress ?? tasks.filter(t => t.status === "In Progress").length;
   const overdue  = summary?.overdue    ?? tasks.filter(t => t.due < today && t.status !== "Done").length;
   const dueToday = tasks.filter(t => t.due === today && t.status !== "Done").length;
+  
+  const pendingCount = tasks.filter(t => t.status !== "Done").length;
+  const userName = user?.name?.split(" ")[0] || "User";
+
+  // Dynamic Workload Assessment
+  const workloadState = pendingCount < 3 ? "light" : pendingCount < 7 ? "balanced" : "intense";
+  const missionPath = overdue > 0 ? "clear high-impact overdue tasks first" : "focus on in-progress momentum";
 
   const statCards = [
     {
@@ -226,15 +233,32 @@ export default function Dashboard({ tasks, onAddTask }) {
 
   return (
     <div className="p-8 max-w-6xl mx-auto fade-in">
+        {/* ── Dynamic AI Greeting ────────────────────────────── */}
+        <div className="mb-10 animate-slide-up">
+          <h1 className="text-3xl font-bold text-white tracking-tight">
+            {userName}, {pendingCount > 7 ? "you're in execution mode" : pendingCount > 0 ? "your focus window is active" : "you're all caught up"} 👋
+          </h1>
+          <div className="mt-2 flex flex-col gap-1">
+            <p className="text-skyblue text-lg opacity-90">
+              You have <span className="text-white font-semibold">{pendingCount} tasks</span> queued, with <span className="text-gold font-semibold">{inProg} already in progress</span>.
+            </p>
+            <p className="text-iron text-sm font-medium flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
+              {pendingCount > 0 
+                ? `System status: ${workloadState} workload, ${missionPath}.`
+                : "System status: stable, no pending risks detected."}
+            </p>
+          </div>
+        </div>
 
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
-            <p className="text-skyblue text-sm mt-1">
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+            <h2 className="text-xs font-bold uppercase tracking-widest text-iron">Overview</h2>
+            <p className="text-skyblue text-[11px] mt-1 font-mono uppercase">
+              {new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
               {dueToday > 0 && (
-                <span className="ml-3 text-amber font-medium">{dueToday} task{dueToday > 1 ? "s" : ""} due today</span>
+                <span className="ml-3 text-amber font-bold tracking-tighter">/ {dueToday} DUE TODAY</span>
               )}
             </p>
           </div>
