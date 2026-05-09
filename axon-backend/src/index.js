@@ -35,6 +35,20 @@ app.use(cookieParser());
 app.get("/health", (req, res) => res.json({ status: "ok", timestamp: new Date() }));
 
 // Public routes
+// Temporary migration route to fix DB schema on Render
+app.get("/api/migrate", async (req, res) => {
+  try {
+    await db.query(`
+      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurring_rule TEXT;
+      ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_priority_check;
+      ALTER TABLE tasks ADD CONSTRAINT tasks_priority_check CHECK (priority IN ('low', 'medium', 'high', 'urgent'));
+    `);
+    res.json({ message: "Migration successful" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use("/api/auth", authRoutes);
 
 // Protected routes — JWT required
