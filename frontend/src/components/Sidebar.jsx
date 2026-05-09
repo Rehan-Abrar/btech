@@ -141,8 +141,8 @@ export default function Sidebar({ user, onAddTask, onLogout }) {
         ))}
       </nav>
 
-      {/* ── User avatar ───────────────────────────────────── */}
-      <div className={`border-t border-steel px-3 py-4 ${collapsed ? "flex justify-center" : ""}`}>
+      {/* ── User avatar & Logout ────────────────────────────── */}
+      <div className={`border-t border-steel px-3 py-4 flex flex-col gap-3 ${collapsed ? "items-center" : ""}`}>
         <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
           <div
             className="w-9 h-9 rounded-full bg-gold text-navy text-xs font-bold
@@ -156,21 +156,24 @@ export default function Sidebar({ user, onAddTask, onLogout }) {
               <p className="text-xs text-iron truncate">{user?.role}</p>
             </div>
           )}
-          {/* Logout button */}
-          {onLogout && (
-            <button
-              id="sidebar-logout-btn"
-              onClick={onLogout}
-              title="Sign out"
-              className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all"
-              style={{ color: "#5A6380" }}
-              onMouseEnter={e => e.currentTarget.style.color = "#FF4D4D"}
-              onMouseLeave={e => e.currentTarget.style.color = "#5A6380"}
-            >
-              <IconLogout />
-            </button>
-          )}
         </div>
+
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200
+                        text-iron hover:text-white hover:bg-steel/30
+                        ${collapsed ? "justify-center" : ""}`}
+            style={{ marginTop: '4px' }}
+          >
+            <div className="shrink-0 text-red-400">
+              <IconLogout />
+            </div>
+            {!collapsed && (
+              <span className="text-sm font-medium text-red-400">Sign Out</span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* ── Collapse toggle ───────────────────────────────── */}
