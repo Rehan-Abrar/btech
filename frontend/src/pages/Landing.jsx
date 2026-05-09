@@ -4,13 +4,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import gradiantBg from "../gradiant.png";
-
-// Placeholder external images to prevent build errors since local assets don't exist yet.
-// Swap these with the imports below when you have the local files!
-// import imgWorkspace from "../assets/landing/pankaj-patel-eygpU6KfOBk-unsplash.jpg";
-// import imgUi from "../assets/landing/wmremove-transformed.png";
-const imgWorkspace = "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1200&q=80";
-const imgUi = "https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80";
+import image1 from "../image1.jpeg";
+import image2 from "../image2.jpeg";
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -26,15 +21,20 @@ export default function Landing() {
   );
 
   return (
-    <div
-      className="min-h-screen bg-cover bg-center bg-no-repeat"
-      style={{
-        backgroundImage: `url(${gradiantBg})`,
-        backgroundColor: "#05070C",
-      }}
-    >
-      {/* Dark glass overlay */}
-      <div className="min-h-screen" style={{ background: "rgba(0,0,0,0.40)" }}>
+    <div className="relative min-h-screen bg-[#05070C]">
+      {/* Fixed/static gradient background (always visible) */}
+      <div
+        className="fixed inset-0 z-0 bg-center bg-no-repeat"
+        style={{
+          backgroundImage: `url(${gradiantBg})`,
+          backgroundSize: "contain",
+          backgroundColor: "#05070C",
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Scrollable content overlay */}
+      <div className="relative z-10 min-h-screen" style={{ background: "rgba(0,0,0,0.40)" }}>
         {/* Top nav */}
         <header className="max-w-6xl mx-auto px-6 pt-6">
           <nav className="flex items-center justify-between">
@@ -50,7 +50,7 @@ export default function Landing() {
 
             <button
               type="button"
-              onClick={() => navigate("/register")}
+              onClick={() => navigate("/")}
               className="rounded-pill px-5 py-2 text-sm font-medium bg-gold text-navy hover:brightness-110 active:scale-95 transition"
             >
               Get started →
@@ -100,7 +100,7 @@ export default function Landing() {
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
               <button
                 type="button"
-                onClick={() => navigate("/login")}
+                onClick={() => navigate("/")}
                 className="rounded-pill px-10 py-3 bg-gold text-navy text-sm font-semibold hover:brightness-110 active:scale-95 transition"
               >
                 Launch dashboard
@@ -145,7 +145,7 @@ export default function Landing() {
             >
               <div
                 className="absolute inset-0 bg-center bg-cover"
-                style={{ backgroundImage: `url(${imgWorkspace})`, opacity: 0.85 }}
+                style={{ backgroundImage: `url(${image1})`, opacity: 0.65 }}
               />
               <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.35)" }} />
               <div className="relative min-h-[60vh] md:min-h-[72vh] flex items-center justify-end px-6 md:px-12 py-12">
@@ -168,7 +168,7 @@ export default function Landing() {
             >
               <div
                 className="absolute inset-0 bg-center bg-cover"
-                style={{ backgroundImage: `url(${imgUi})`, opacity: 0.9 }}
+                style={{ backgroundImage: `url(${image2})`, opacity: 0.7 }}
               />
               <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.35)" }} />
               <div className="relative min-h-[60vh] md:min-h-[72vh] flex items-center justify-start px-6 md:px-12 py-12">
@@ -191,7 +191,7 @@ export default function Landing() {
             >
               <div
                 className="absolute inset-0 bg-center bg-cover"
-                style={{ backgroundImage: `url(${imgWorkspace})`, opacity: 0.82 }}
+                style={{ backgroundImage: `url(${image1})`, opacity: 0.65 }}
               />
               <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.35)" }} />
               <div className="relative min-h-[60vh] md:min-h-[72vh] flex items-center justify-end px-6 md:px-12 py-12">
