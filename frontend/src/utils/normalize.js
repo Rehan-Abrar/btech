@@ -16,6 +16,7 @@ export const PRIORITY_TO_DB = {
   "Low": "low",
   "Medium": "medium",
   "High": "high",
+  "Urgent": "urgent",
 };
 
 export const PRIORITY_FROM_DB = {

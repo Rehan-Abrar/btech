@@ -30,8 +30,12 @@ export default function App() {
 
   const isLoggedIn = !!currentUser && !!localStorage.getItem("accessToken");
 
-  // Apply recurring engine to generate virtual future tasks
-  const displayTasks = useMemo(() => generateRecurringTasks(tasks), [tasks]);
+  // Apply recurring engine + AI prioritization to the list for display
+  const displayTasks = useMemo(() => {
+    const withRecurring = generateRecurringTasks(tasks);
+    // Sort by priority and status for a clean UI view
+    return prioritizeTasks(withRecurring, null).tasks;
+  }, [tasks]);
 
   // Enable notifications
   useTaskNotifications(displayTasks);
@@ -91,13 +95,10 @@ export default function App() {
     const payload = {
       title:       incomingTask.title,
       description: incomingTask.description || "",
-      due_date:    incomingTask.due || null,
+      due_date:    incomingTask.due ? incomingTask.due.slice(0, 10) : null,
       priority:    PRIORITY_TO_DB[incomingTask.priority] || incomingTask.priority?.toLowerCase() || "medium",
       status:      STATUS_TO_DB[incomingTask.status]     || incomingTask.status?.toLowerCase().replace(" ", "-") || "todo",
     };
-
-    // If priority mapping failed for 'Urgent', make sure we send 'urgent'
-    if (incomingTask.priority === "Urgent") payload.priority = "urgent";
 
     try {
       if (formTask.id) {

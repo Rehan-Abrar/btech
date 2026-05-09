@@ -45,12 +45,12 @@ export function calculateScore(task) {
   return score;
 }
 
-export function prioritizeTasks(tasks, incomingTask) {
+export function prioritizeTasks(tasks, incomingTask = null) {
   const updatedTasks = tasks.map(t => ({ ...t }));
-  const incoming = { ...incomingTask };
+  const incoming = incomingTask ? { ...incomingTask } : null;
 
-  const incomingPriority = clampPriority(incoming.priority);
-  const urgentIncoming = incomingPriority === "Urgent" || incomingPriority === "High";
+  const incomingPriority = incoming ? clampPriority(incoming.priority) : null;
+  const urgentIncoming = incoming ? (incomingPriority === "Urgent" || incomingPriority === "High") : false;
 
   let changedCount = 0;
 
@@ -70,14 +70,12 @@ export function prioritizeTasks(tasks, incomingTask) {
       }
     }
 
-    // Ensure the incoming task becomes Urgent.
-    incoming.priority = "Urgent";
-    incoming.aiReason = "Marked urgent due to high-urgency intake.";
+    incoming.aiReason = "High-urgency intake triggered system-wide re-prioritization.";
   }
 
   // Score pass (makes it feel smarter and produces deterministic ordering)
   const scored = updatedTasks.map(t => ({ ...t, aiScore: calculateScore(t) }));
-  const incomingScored = { ...incoming, aiScore: calculateScore(incoming) + (urgentIncoming ? 10 : 0) };
+  const incomingScored = incoming ? { ...incoming, aiScore: calculateScore(incoming) + (urgentIncoming ? 10 : 0) } : null;
 
   // Sort by score, then by priority rank, then by due date.
   scored.sort((a, b) => {
