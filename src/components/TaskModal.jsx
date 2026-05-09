@@ -17,12 +17,6 @@ const COLORS = {
   ironGray: "#5A6380",
 };
 
-const PRIORITY_BADGE = {
-  High: { bg: "bg-red-900", text: "text-red-300", border: "border-red-700" },
-  Medium: { bg: "bg-amber-900", text: "text-amber-300", border: "border-amber-700" },
-  Low: { bg: "bg-green-900", text: "text-green-300", border: "border-green-700" },
-};
-
 export default function TaskModal({ task, onSave, onClose }) {
   const [form, setForm] = useState({
     title: "",
@@ -105,14 +99,32 @@ export default function TaskModal({ task, onSave, onClose }) {
 
         {/* Modal Header */}
         <div className="mb-6">
-          <h2 
-            className="text-2xl font-medium"
-            style={{ color: COLORS.pureWhite }}
-          >
-            {isEditMode ? `Edit task` : `Create new task`}
-          </h2>
+          <div className="flex items-center gap-3">
+            {/* AXON abstract mark (neural node) */}
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: COLORS.mustardGold }}
+              aria-hidden="true"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="3" fill={COLORS.navyBlue} />
+                <line x1="12" y1="9"  x2="8"  y2="5"  stroke={COLORS.navyBlue} strokeWidth="2" strokeLinecap="round"/>
+                <line x1="12" y1="9"  x2="16" y2="5"  stroke={COLORS.navyBlue} strokeWidth="2" strokeLinecap="round"/>
+                <line x1="12" y1="15" x2="8"  y2="19" stroke={COLORS.navyBlue} strokeWidth="2" strokeLinecap="round"/>
+                <line x1="12" y1="15" x2="16" y2="19" stroke={COLORS.navyBlue} strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </div>
+
+            <h2 
+              className="text-2xl font-medium"
+              style={{ color: COLORS.pureWhite }}
+            >
+              {isEditMode ? `Edit task` : `Create new task`}
+            </h2>
+          </div>
+
           <p 
-            className="text-sm mt-1 font-regular"
+            className="text-sm mt-2 font-regular"
             style={{ color: COLORS.skyBlue }}
           >
             {isEditMode ? `Modify task details below.` : `Set up your task below. AI will help with scheduling.`}
@@ -250,6 +262,7 @@ export default function TaskModal({ task, onSave, onClose }) {
                   borderWidth: "1px",
                   borderColor: errors.due ? COLORS.alertRed : COLORS.mustardGold,
                   color: COLORS.pureWhite,
+                  colorScheme: "dark",
                 }}
               />
               {errors.due && (
@@ -289,15 +302,15 @@ export default function TaskModal({ task, onSave, onClose }) {
           {/* Cancel Button */}
           <button
             onClick={onClose}
-            className="px-6 py-3 text-sm font-medium rounded-full transition border-2"
+            className="px-6 py-3 text-sm font-medium rounded-full transition border"
             style={{
               backgroundColor: "transparent",
               borderColor: COLORS.steelRim,
-              color: COLORS.skyBlue,
+              color: COLORS.pureWhite,
             }}
             onMouseEnter={e => {
-              e.target.style.borderColor = COLORS.skyBlue;
-              e.target.style.backgroundColor = `${COLORS.navyBlue}80`;
+              e.target.style.borderColor = COLORS.mustardGold;
+              e.target.style.backgroundColor = "rgba(30,58,95,0.35)"; // Steel Rim tint
             }}
             onMouseLeave={e => {
               e.target.style.borderColor = COLORS.steelRim;
@@ -314,14 +327,15 @@ export default function TaskModal({ task, onSave, onClose }) {
             style={{
               backgroundColor: COLORS.mustardGold,
               color: COLORS.navyBlue,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
             }}
             onMouseEnter={e => {
               e.target.style.backgroundColor = "#E5C158";
-              e.target.style.boxShadow = `0 0 16px ${COLORS.mustardGold}40`;
+              e.target.style.boxShadow = "0 10px 28px rgba(0,0,0,0.30)";
             }}
             onMouseLeave={e => {
               e.target.style.backgroundColor = COLORS.mustardGold;
-              e.target.style.boxShadow = "none";
+              e.target.style.boxShadow = "0 8px 24px rgba(0,0,0,0.25)";
             }}
           >
             {isEditMode ? "Save changes" : "Create task"}

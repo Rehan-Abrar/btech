@@ -100,8 +100,8 @@ export default function AIChat({ tasks, onEventCreate, initialPrompt = "" }) {
 
       {/* Chat container */}
       <div
-        className="bg-navy rounded-2xl border border-steel flex flex-col overflow-hidden"
-        style={{ flex: 1, maxHeight: "calc(100vh - 230px)" }}
+        className="rounded-2xl border border-steel flex flex-col overflow-hidden backdrop-blur-md"
+        style={{ flex: 1, maxHeight: "calc(100vh - 230px)", background: "rgba(10,38,71,0.45)" }}
       >
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4">

@@ -218,133 +218,148 @@ export default function Dashboard({ tasks, onAddTask }) {
   return (
     <div className="p-8 max-w-6xl mx-auto fade-in">
 
-      {/* ── Header ──────────────────────────────────────────── */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
-          <p className="text-skyblue text-sm mt-1">
-            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-            {dueToday > 0 && (
-              <span className="ml-3 text-amber font-medium">{dueToday} task{dueToday > 1 ? "s" : ""} due today</span>
-            )}
-          </p>
-        </div>
-        <button
-          id="dashboard-new-task-btn"
-          onClick={onAddTask}
-          className="flex items-center gap-2 bg-gold text-navy font-medium text-sm
-                     rounded-pill py-2.5 px-5
-                     hover:brightness-110 active:scale-95 transition-all"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          New Task
-        </button>
-      </div>
-
-      {/* ── Stat cards ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {statCards.map(s => (
-          <div
-            key={s.id}
-            id={s.id}
-            className="bg-navy rounded-2xl p-5 card-hover"
-            style={{ border: `0.5px solid ${s.border}33` }}
+        {/* ── Header ──────────────────────────────────────────── */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+            <p className="text-skyblue text-sm mt-1">
+              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+              {dueToday > 0 && (
+                <span className="ml-3 text-amber font-medium">{dueToday} task{dueToday > 1 ? "s" : ""} due today</span>
+              )}
+            </p>
+          </div>
+          <button
+            id="dashboard-new-task-btn"
+            onClick={onAddTask}
+            className="flex items-center gap-2 bg-gold text-navy font-medium text-sm
+                       rounded-pill py-2.5 px-5
+                       hover:brightness-110 active:scale-95 transition-all"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-8 h-8 rounded-lg bg-steel flex items-center justify-center">
-                {s.icon}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New task
+          </button>
+        </div>
+
+        {/* ── Stat cards ──────────────────────────────────────── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {statCards.map(s => (
+            <div
+              key={s.id}
+              id={s.id}
+              className="rounded-2xl p-5 card-hover backdrop-blur-md"
+              style={{
+                background: "rgba(10,38,71,0.45)",
+                border: `0.5px solid ${s.border}44`,
+                boxShadow: `0 0 0 0.5px ${s.border}11`,
+              }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+                  style={{ background: "rgba(30,58,95,0.8)" }}>
+                  {s.icon}
+                </div>
+                <span className="text-xs font-mono" style={{ color: s.accent }}>
+                  {s.sub}
+                </span>
               </div>
-              <span className="text-xs font-mono" style={{ color: s.accent }}>
-                {s.sub}
-              </span>
+              <p className="text-3xl font-semibold text-white">{s.value}</p>
+              <p className="text-xs text-skyblue mt-1">{s.label}</p>
             </div>
-            <p className="text-3xl font-semibold text-white">{s.value}</p>
-            <p className="text-xs text-skyblue mt-1">{s.label}</p>
+          ))}
+        </div>
+
+        {/* ── Two-column charts row ────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
+
+          {/* Completion ring + status bars — spans 2 cols */}
+          <div
+            className="lg:col-span-2 rounded-2xl p-6 card-hover backdrop-blur-md"
+            style={{ background: "rgba(10,38,71,0.45)", border: "0.5px solid #1E3A5F" }}
+          >
+            <h2 className="text-sm font-medium text-white mb-5">Task progress by status</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              <div>
+                <p className="text-xs text-skyblue mb-3">Completion rate</p>
+                <CompletionRing done={done} total={total} />
+              </div>
+              <StatusBarChart tasks={tasks} />
+            </div>
           </div>
-        ))}
-      </div>
 
-      {/* ── Two-column charts row ────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
-
-        {/* Completion ring + status bars — spans 2 cols */}
-        <div className="lg:col-span-2 bg-navy rounded-2xl p-6 border border-steel card-hover">
-          <h2 className="text-sm font-medium text-white mb-5">Task progress by status</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            <div>
-              <p className="text-xs text-skyblue mb-3">Completion rate</p>
-              <CompletionRing done={done} total={total} />
-            </div>
-            <StatusBarChart tasks={tasks} />
+          {/* Priority donut */}
+          <div
+            className="rounded-2xl p-6 card-hover backdrop-blur-md"
+            style={{ background: "rgba(10,38,71,0.45)", border: "0.5px solid #1E3A5F" }}
+          >
+            <h2 className="text-sm font-medium text-white mb-5">Priority breakdown</h2>
+            {total === 0
+              ? <EmptyState message="No tasks yet" small />
+              : <PriorityDonut tasks={tasks} />
+            }
           </div>
         </div>
 
-        {/* Priority donut */}
-        <div className="bg-navy rounded-2xl p-6 border border-steel card-hover">
-          <h2 className="text-sm font-medium text-white mb-5">Priority breakdown</h2>
-          {total === 0
-            ? <EmptyState message="No tasks yet" small />
-            : <PriorityDonut tasks={tasks} />
+        {/* ── Recent activity ──────────────────────────────────── */}
+        <div
+          className="rounded-2xl overflow-hidden card-hover backdrop-blur-md"
+          style={{ background: "rgba(10,38,71,0.45)", border: "0.5px solid #1E3A5F" }}
+        >
+          <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "0.5px solid #1E3A5F" }}>
+            <h2 className="text-sm font-medium text-white">Recent activity</h2>
+            <span className="text-xs text-iron font-mono">{recent.length} tasks</span>
+          </div>
+          {recent.length === 0
+            ? <EmptyState message="No tasks yet. Create your first one!" />
+            : (
+              <div>
+                {recent.map((t, idx) => {
+                  const isOverdue = t.due < today && t.status !== "Done";
+                  return (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between px-6 py-4 hover:bg-white/5 transition-colors"
+                      style={{ borderBottom: idx < recent.length - 1 ? "0.5px solid #1E3A5F" : "none" }}
+                    >
+                      {/* Left: dot + title + meta */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{
+                            background:
+                              t.priority === "High"   ? "#FF4D4D" :
+                              t.priority === "Medium" ? "#F5A623" : "#22C55E"
+                          }}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm text-white truncate">{t.title}</p>
+                          <p className="text-xs text-iron mt-0.5 font-mono">
+                            Due{" "}
+                            <span className={isOverdue ? "text-alert" : "text-skyblue"}>
+                              {t.due}
+                            </span>
+                            {" · "}{t.assignee}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Right: priority + status */}
+                      <div className="flex items-center gap-2 shrink-0 ml-4">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-lg ${priorityBadge[t.priority]}`}>
+                          {t.priority}
+                        </span>
+                        <span className={`text-xs font-mono ${statusBadge[t.status]}`}>
+                          {t.status}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           }
         </div>
       </div>
-
-      {/* ── Recent activity ──────────────────────────────────── */}
-      <div className="bg-navy rounded-2xl border border-steel overflow-hidden card-hover">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-steel">
-          <h2 className="text-sm font-medium text-white">Recent activity</h2>
-          <span className="text-xs text-iron">{recent.length} tasks</span>
-        </div>
-        {recent.length === 0
-          ? <EmptyState message="No tasks yet. Create your first one!" />
-          : (
-            <div className="divide-y divide-steel">
-              {recent.map(t => {
-                const isOverdue = t.due < today && t.status !== "Done";
-                return (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between px-6 py-4 hover:bg-steel/40 transition-colors"
-                  >
-                    {/* Left: dot + title + meta */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{
-                          background:
-                            t.priority === "High"   ? "#FF4D4D" :
-                            t.priority === "Medium" ? "#F5A623" : "#22C55E"
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm text-white truncate">{t.title}</p>
-                        <p className="text-xs text-iron mt-0.5">
-                          Due{" "}
-                          <span className={isOverdue ? "text-alert" : "text-skyblue"}>
-                            {t.due}
-                          </span>
-                          {" · "}{t.assignee}
-                        </p>
-                      </div>
-                    </div>
-                    {/* Right: priority + status */}
-                    <div className="flex items-center gap-2 shrink-0 ml-4">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-lg ${priorityBadge[t.priority]}`}>
-                        {t.priority}
-                      </span>
-                      <span className={`text-xs font-mono ${statusBadge[t.status]}`}>
-                        {t.status}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
-        }
-      </div>
-    </div>
   );
 }

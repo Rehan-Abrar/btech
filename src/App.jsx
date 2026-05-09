@@ -13,6 +13,7 @@ import TaskModal    from "./components/TaskModal";
 import Login        from "./pages/Login";
 import Register     from "./pages/Register";
 import { mockTasks, mockEvents, mockUser } from "./data/mockTasks";
+import gradiantBg from "./gradiant.png";
 
 export default function App() {
   // ── Core data state ────────────────────────────────────────
@@ -54,12 +55,25 @@ export default function App() {
   return (
     <BrowserRouter>
       {/* Outer shell: sidebar fixed left, main scrolls right */}
-      <div className="flex h-screen overflow-hidden bg-richblack">
+      <div 
+        className="relative flex h-screen overflow-hidden bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: `url(${gradiantBg})`,
+          backgroundColor: '#1A1A1A'
+        }}
+      >
+        {/* App-wide scrim */}
+        <div
+          className="absolute inset-0 pointer-events-none z-0"
+          style={{ background: "rgba(0,0,0,0.15)" }}
+        />
 
-        <Sidebar user={currentUser} onAddTask={handleAdd} />
+        {/* Content container (above scrim) */}
+        <div className="relative z-10 flex h-full w-full">
+          <Sidebar user={currentUser} onAddTask={handleAdd} />
 
-        {/* Main content area */}
-        <main className="flex-1 overflow-y-auto min-w-0">
+          {/* Main content area */}
+          <main className="flex-1 overflow-y-auto min-w-0">
           <Routes>
             <Route
               path="/"
@@ -122,6 +136,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        </div>
 
         {/* Global task modal — rendered at App level so it overlays everything */}
         {modalOpen && (

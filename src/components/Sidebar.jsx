@@ -68,11 +68,11 @@ export default function Sidebar({ user, onAddTask }) {
     <aside
       className={`
         relative flex flex-col shrink-0
-        bg-navy border-r border-steel
+        border-r border-steel backdrop-blur-md
         transition-all duration-300
         ${collapsed ? "w-16" : "w-60"}
       `}
-      style={{ minHeight: "100vh" }}
+      style={{ minHeight: "100vh", background: "rgba(10,38,71,0.45)" }}
     >
       {/* ── Logo ──────────────────────────────────────────── */}
       <div className={`flex items-center gap-3 px-4 py-5 border-b border-steel ${collapsed ? "justify-center" : ""}`}>
