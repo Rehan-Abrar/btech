@@ -10,7 +10,7 @@ const taskSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().optional().default(""),
   due_date: z.string().optional().nullable(),
-  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
   status: z.enum(["todo", "in-progress", "review", "done"]).default("todo"),
 });
 

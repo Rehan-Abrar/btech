@@ -11,7 +11,7 @@ const authHeader = () => ({
 export const fetchTasks = async (filters = {}) => {
   const params = new URLSearchParams(filters).toString();
   const res = await fetch(`${BASE}/api/tasks?${params}`, { headers: authHeader() });
-  if (!res.ok) throw new Error("Failed to fetch tasks");
+  if (!res.ok) throw new Error(`Failed to fetch tasks (${res.status})`);
   const data = await res.json();
   return data.tasks;
 };
@@ -25,7 +25,7 @@ export const createTask = async (task) => {
   const res = await fetch(`${BASE}/api/tasks`, {
     method: "POST", headers: authHeader(), body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("Failed to create task");
+  if (!res.ok) throw new Error(`Failed to create task (${res.status})`);
   return res.json();
 };
 
@@ -36,7 +36,7 @@ export const updateTask = async (id, task) => {
   const res = await fetch(`${BASE}/api/tasks/${id}`, {
     method: "PUT", headers: authHeader(), body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("Failed to update task");
+  if (!res.ok) throw new Error(`Failed to update task (${res.status})`);
   return res.json();
 };
 
@@ -44,7 +44,7 @@ export const deleteTask = async (id) => {
   const res = await fetch(`${BASE}/api/tasks/${id}`, {
     method: "DELETE", headers: authHeader(),
   });
-  if (!res.ok) throw new Error("Failed to delete task");
+  if (!res.ok) throw new Error(`Failed to delete task (${res.status})`);
   return res.json();
 };
 

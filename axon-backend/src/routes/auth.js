@@ -25,7 +25,7 @@ const generateTokens = (user) => {
   const accessToken = jwt.sign(
     { id: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET,
-    { expiresIn: "15m" }
+    { expiresIn: "7d" }
   );
   const refreshToken = jwt.sign(
     { id: user.id },
@@ -139,7 +139,7 @@ router.post("/refresh", async (req, res) => {
     const accessToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: "15m" }
+      { expiresIn: "7d" }
     );
 
     res.json({ accessToken });

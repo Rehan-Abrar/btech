@@ -42,7 +42,12 @@ export default function App() {
     setLoading(true);
     fetchTasks()
       .then(raw => setTasks(raw.map(normalizeTask)))
-      .catch(console.error)
+      .catch(err => {
+        console.error(err);
+        if (err.message.includes("401") || err.message.includes("403")) {
+          handleLogout();
+        }
+      })
       .finally(() => setLoading(false));
   }, [isLoggedIn]);
 
@@ -90,6 +95,9 @@ export default function App() {
       priority:    PRIORITY_TO_DB[incomingTask.priority] || incomingTask.priority?.toLowerCase() || "medium",
       status:      STATUS_TO_DB[incomingTask.status]     || incomingTask.status?.toLowerCase().replace(" ", "-") || "todo",
     };
+
+    // If priority mapping failed for 'Urgent', make sure we send 'urgent'
+    if (incomingTask.priority === "Urgent") payload.priority = "urgent";
 
     try {
       if (formTask.id) {
