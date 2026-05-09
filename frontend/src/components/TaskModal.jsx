@@ -34,12 +34,17 @@ export default function TaskModal({ task, onSave, onClose }) {
     if (task) {
       setForm(task);
     } else {
-      // Set default due date to tomorrow
+      // Set default due date to tomorrow, maintaining local time formatted for datetime-local
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // format to YYYY-MM-DDThh:mm in local time
+      const offset = tomorrow.getTimezoneOffset() * 60000;
+      const localISOTime = (new Date(tomorrow.getTime() - offset)).toISOString().slice(0, 16);
+      
       setForm(prev => ({
         ...prev,
-        due: tomorrow.toISOString().split("T")[0],
+        due: localISOTime,
       }));
     }
     setErrors({});
@@ -253,7 +258,7 @@ export default function TaskModal({ task, onSave, onClose }) {
                 Due Date *
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 value={form.due}
                 onChange={e => handleChange("due", e.target.value)}
                 className="w-full px-4 py-3 rounded-full text-sm transition outline-none"

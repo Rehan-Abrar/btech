@@ -5,15 +5,28 @@ const db = require("../db");
 
 const router = express.Router();
 
-// Gemini API helper
-const callGemini = async (systemPrompt, userMessage) => {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-  const { data } = await axios.post(url, {
-    system_instruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ parts: [{ text: userMessage }] }],
-    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-  });
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
+// Groq API helper
+const callGroq = async (systemPrompt, userMessage) => {
+  const url = "https://api.groq.com/openai/v1/chat/completions";
+  const { data } = await axios.post(
+    url,
+    {
+      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage }
+      ],
+      temperature: 0.7,
+      max_tokens: 1024,
+    },
+    {
+      headers: {
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json"
+      }
+    }
+  );
+  return data.choices?.[0]?.message?.content || "No response.";
 };
 
 // POST /api/ai/chat
@@ -57,7 +70,7 @@ TASK_CREATE:{"title":"...","priority":"low|medium|high","status":"todo","due_dat
 
 Be concise, helpful, and specific to their actual tasks.`;
 
-    const aiReply = await callGemini(systemPrompt, message);
+    const aiReply = await callGroq(systemPrompt, message);
 
     // Parse task creation command if present
     let createdTask = null;
@@ -136,7 +149,7 @@ IMPORTANT: duration_hours must be a NUMBER like 1, 1.5, 2. Never a string like "
     const userMessage = `Schedule these tasks for today. Start at 9 AM, end by 6 PM, include breaks.
 Tasks: ${JSON.stringify(tasks.map(t => ({ id: t.id, title: t.title, priority: t.priority, due_date: t.due_date })))}`;
 
-    const aiReply = await callGemini(systemPrompt, userMessage);
+    const aiReply = await callGroq(systemPrompt, userMessage);
 
     let scheduleData;
     try {
@@ -194,7 +207,7 @@ Analyze the existing tasks and return JSON with updated priorities:
 {"updates": [{"id": "uuid", "priority": "high|medium|low", "reason": "why"}]}
 Only return JSON.`;
 
-    const aiReply = await callGemini(systemPrompt, JSON.stringify(tasks.rows));
+    const aiReply = await callGroq(systemPrompt, JSON.stringify(tasks.rows));
 
     const match = aiReply.match(/\{[\s\S]*\}/);
     if (!match) return res.json({ updates: [], message: "No reorganization needed" });

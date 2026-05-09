@@ -453,6 +453,56 @@ export default function Register({ onLogin }) {
                   error={touched.confirm && errors.confirm}
                   placeholder="Repeat password"
                 />
+
+                {/* Role selector */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label
+                    htmlFor="role"
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      color: AXON.textMuted,
+                    }}
+                  >
+                    Role
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      id="role"
+                      value={form.role}
+                      onChange={(e) => handleChange('role', e.target.value)}
+                      style={{
+                        width: '100%',
+                        appearance: 'none',
+                        background: AXON.surface,
+                        border: `1px solid ${AXON.borderFocus}`,
+                        borderRadius: '9999px',
+                        padding: '14px 40px 14px 16px',
+                        fontSize: '14px',
+                        color: AXON.textMain,
+                        outline: 'none',
+                        fontFamily: 'JetBrains Mono, monospace',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <option value="Student">Student — personal task management & AI chat</option>
+                      <option value="Manager">Manager — team calendar, scheduling & planning</option>
+                    </select>
+                    {/* Chevron icon */}
+                    <svg
+                      width="12" height="12" viewBox="0 0 24 24" fill="none"
+                      stroke={AXON.primary} strokeWidth="2.5" strokeLinecap="round"
+                      style={{ position: 'absolute', right: '18px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                  <p style={{ fontSize: '11px', color: AXON.textMuted, paddingLeft: '4px' }}>
+                    {form.role === 'Manager'
+                      ? '✦ Calendar, scheduling & team features will be enabled'
+                      : '✦ Personal dashboard, AI chat & kanban board'}
+                  </p>
+                </div>
               </div>
 
               <button

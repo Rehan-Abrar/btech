@@ -14,6 +14,7 @@ import Register     from "./pages/Register";
 import { fetchTasks, createTask, updateTask, deleteTask } from "./api/tasks";
 import { logout as apiLogout, getStoredUser } from "./api/auth";
 import { STATUS_TO_DB, STATUS_FROM_DB, PRIORITY_FROM_DB, PRIORITY_TO_DB } from "./utils/normalize";
+import useTaskNotifications from "./hooks/useTaskNotifications";
 import gradiantBg from "./gradiant.png";
 
 export default function App() {
@@ -25,6 +26,9 @@ export default function App() {
   const [loading,     setLoading]    = useState(true);
 
   const isLoggedIn = !!currentUser && !!localStorage.getItem("accessToken");
+
+  // Enable notifications
+  useTaskNotifications(tasks);
 
   // Load tasks when user logs in
   useEffect(() => {
