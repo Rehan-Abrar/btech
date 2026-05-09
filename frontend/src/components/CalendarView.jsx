@@ -25,6 +25,13 @@ const STATUS_COLOR = {
   "To Do": COLORS.skyBlue,
 };
 
+const PRIORITY_COLOR = {
+  Urgent: COLORS.alertRed,
+  High: COLORS.cautionAmber,
+  Medium: COLORS.mustardGold,
+  Low: COLORS.skyBlue,
+};
+
 const ChevLeft = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="15 18 9 12 15 6" /></svg>
 );
@@ -77,14 +84,15 @@ export default function CalendarView({ tasks = [], events = [], onAdd, onEdit })
     const taskIdsWithEvents = new Set(events.map(e => e.task_id));
     for (const t of tasks) {
       if (!taskIdsWithEvents.has(t.id) && t.due) {
-        const dateStr = t.due;
+        // Ensure dateStr is YYYY-MM-DD
+        const dateStr = typeof t.due === "string" ? t.due.slice(0, 10) : toDateStr(new Date(t.due));
         if (!map.has(dateStr)) map.set(dateStr, []);
         map.get(dateStr).push({
           id: `task-${t.id}`,
           task_id: t.id,
           title: t.title,
-          start: `${t.due}T00:00`,
-          end: `${t.due}T23:59`,
+          start: `${dateStr}T00:00`,
+          end: `${dateStr}T23:59`,
           isPseudoEvent: true
         });
       }
@@ -206,7 +214,8 @@ export default function CalendarView({ tasks = [], events = [], onAdd, onEdit })
                   <div className="mt-2 space-y-1">
                     {dayEvents.slice(0, 2).map((ev) => {
                       const linked = taskById.get(ev.task_id);
-                      const chipColor = linked?.status ? (STATUS_COLOR[linked.status] ?? COLORS.mustardGold) : COLORS.mustardGold;
+                      // Priority color coding as requested by user
+                      const chipColor = linked?.priority ? (PRIORITY_COLOR[linked.priority] ?? COLORS.mustardGold) : COLORS.mustardGold;
                       return (
                         <div
                           key={ev.id}
