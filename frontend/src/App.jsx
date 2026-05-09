@@ -1,7 +1,9 @@
 // frontend/src/App.jsx — Day 2 Production Version
 // Real JWT auth. Login is the entry point. No mock data.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { generateRecurringTasks } from "./services/recurringTaskEngine";
+import { prioritizeTasks } from "./services/aiPrioritizer";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Sidebar      from "./components/Sidebar";
 import Dashboard    from "./components/Dashboard";
@@ -27,8 +29,11 @@ export default function App() {
 
   const isLoggedIn = !!currentUser && !!localStorage.getItem("accessToken");
 
+  // Apply recurring engine to generate virtual future tasks
+  const displayTasks = useMemo(() => generateRecurringTasks(tasks), [tasks]);
+
   // Enable notifications
-  useTaskNotifications(tasks);
+  useTaskNotifications(displayTasks);
 
   // Load tasks when user logs in
   useEffect(() => {
@@ -70,12 +75,19 @@ export default function App() {
   };
 
   const handleSave = async (formTask) => {
+    // 1. Run AI Prioritization before hitting DB
+    const { tasks: prioritizedTasks, incomingTask, summary } = prioritizeTasks(tasks, formTask);
+
+    if (summary.changed) {
+      console.log(summary.message); // Could be a toast notification later
+    }
+
     const payload = {
-      title:       formTask.title,
-      description: formTask.description || "",
-      due_date:    formTask.due || null,
-      priority:    PRIORITY_TO_DB[formTask.priority] || formTask.priority?.toLowerCase() || "medium",
-      status:      STATUS_TO_DB[formTask.status]     || formTask.status?.toLowerCase().replace(" ", "-") || "todo",
+      title:       incomingTask.title,
+      description: incomingTask.description || "",
+      due_date:    incomingTask.due || null,
+      priority:    PRIORITY_TO_DB[incomingTask.priority] || incomingTask.priority?.toLowerCase() || "medium",
+      status:      STATUS_TO_DB[incomingTask.status]     || incomingTask.status?.toLowerCase().replace(" ", "-") || "todo",
     };
 
     try {
@@ -86,6 +98,25 @@ export default function App() {
         const created = await createTask(payload);
         setTasks(prev => [...prev, normalizeTask(created)]);
       }
+
+      // 2. If AI reprioritized other tasks, update them in DB
+      if (summary.changed) {
+        const changedTasks = prioritizedTasks.filter(pt => {
+          const original = tasks.find(t => t.id === pt.id);
+          return original && original.priority !== pt.priority;
+        });
+
+        for (const ct of changedTasks) {
+          try {
+            const dbPrio = PRIORITY_TO_DB[ct.priority] || ct.priority?.toLowerCase() || "medium";
+            await updateTask(ct.id, { priority: dbPrio });
+            setTasks(prev => prev.map(t => t.id === ct.id ? { ...t, priority: ct.priority } : t));
+          } catch (err) {
+            console.error("Failed to auto-update priority", err);
+          }
+        }
+      }
+
       setModalOpen(false);
     } catch (err) {
       console.error(err);
@@ -170,31 +201,31 @@ export default function App() {
               <Route
                 path="/"
                 element={isLoggedIn
-                  ? <Dashboard tasks={tasks} onAddTask={handleAdd} />
+                  ? <Dashboard tasks={displayTasks} onAddTask={handleAdd} />
                   : <Navigate to="/login" replace />}
               />
               <Route
                 path="/board"
                 element={isLoggedIn
-                  ? <KanbanBoard tasks={tasks} onAdd={handleAdd} onEdit={handleEdit} onDelete={handleDelete} onMove={handleMove} />
+                  ? <KanbanBoard tasks={displayTasks} onAdd={handleAdd} onEdit={handleEdit} onDelete={handleDelete} onMove={handleMove} />
                   : <Navigate to="/login" replace />}
               />
               <Route
                 path="/calendar"
                 element={isLoggedIn
-                  ? <CalendarView tasks={tasks} events={events} onAdd={handleAdd} onEdit={handleEdit} />
+                  ? <CalendarView tasks={displayTasks} events={events} onAdd={handleAdd} onEdit={handleEdit} />
                   : <Navigate to="/login" replace />}
               />
               <Route
                 path="/ai"
                 element={isLoggedIn
-                  ? <AIChat tasks={tasks} onEventCreate={handleEventCreate} onTaskCreated={handleTaskCreated} />
+                  ? <AIChat tasks={displayTasks} onEventCreate={handleEventCreate} onTaskCreated={handleTaskCreated} />
                   : <Navigate to="/login" replace />}
               />
               <Route
                 path="/ai/schedule"
                 element={isLoggedIn
-                  ? <AIChat tasks={tasks} onEventCreate={handleEventCreate} onTaskCreated={handleTaskCreated} initialPrompt="Generate my schedule for today" />
+                  ? <AIChat tasks={displayTasks} onEventCreate={handleEventCreate} onTaskCreated={handleTaskCreated} initialPrompt="Generate my schedule for today" />
                   : <Navigate to="/login" replace />}
               />
 
