@@ -236,7 +236,7 @@ export default function Dashboard({ user, tasks, onAddTask }) {
         {/* ── Dynamic AI Greeting ────────────────────────────── */}
         <div className="mb-10 animate-slide-up">
           <h1 className="text-3xl font-bold text-white tracking-tight">
-            {userName}, {pendingCount > 7 ? "you're in execution mode" : pendingCount > 0 ? "your focus window is active" : "you're all caught up"} 👋
+            {userName}, {pendingCount > 7 ? "you're in execution mode" : pendingCount > 0 ? "your focus window is active" : "you're all caught up"}
           </h1>
           <div className="mt-2 flex flex-col gap-1">
             <p className="text-skyblue text-lg opacity-90">

@@ -327,7 +327,7 @@ export default function Dashboard({ tasks, onAddTask }) {
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Good morning 👋</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Good morning!</h2>
           <p className="text-gray-500 mt-1">Here's today's overview.</p>
         </div>
         <button onClick={onAddTask} className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
