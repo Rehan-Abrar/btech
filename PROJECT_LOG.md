@@ -3,6 +3,9 @@
 ## 2026-05-09
 - Updated Day 2 plan with bug-fix instructions, revised priority order, and cut list guidance.
 - Corrected plan snippets for summary route order, events query, AI axios usage, TASK_CREATE regex, App.jsx handleMove, and Dashboard summary null safety.
+- Revised Day 2 plan for normalize.js usage, simplified auth (no refresh tokens), stricter AI schedule schema/JSON parsing, calendar dedupe, and updated frontend auth/task snippets.
+- Realigned Day 2 plan to the official requirements: refresh-token auth, task status enum (todo/in-progress/done), updated schema, auth flows, failure modes, and bonus list ordering.
+- Moved the Vite app into frontend/ and scaffolded axon-backend with scripts, schema, db.js, index.js, and env placeholders.
 
 ## 2026-05-08
 - Created the initial Axon project skeleton.

@@ -4,7 +4,7 @@
 
 Day 2 is a 5-hour backend sprint. Your frontend is already built and prop-ready. The job today is to wire every mock into a real database, spin up a Node.js + Express API, connect a real AI provider, and deploy. Every must-have feature carries a scoring penalty if missing — so prioritize the 6 mandatory endpoints before touching any bonus feature.
 
-The backend is a single Express app. Database is PostgreSQL. Auth uses bcrypt + JWT (access token 15m, refresh token in httpOnly cookie). AI calls go to Gemini API. All routes except `/api/auth/*` are protected by JWT middleware. The frontend's `src/api/` stub files get filled in — nothing in the UI changes.
+The backend is a single Express app. Database is PostgreSQL. Auth uses bcrypt + JWT (access token 15m + refresh token in httpOnly cookie). AI calls go to Gemini API. All routes except `/api/auth/*` are protected by JWT middleware. The frontend's `src/api/` stub files get filled in — nothing in the UI changes.
 
 ---
 
@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   description TEXT,
   due_date    DATE,
   priority    VARCHAR(20) DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
-  status      VARCHAR(30) DEFAULT 'todo' CHECK (status IN ('todo', 'in-progress', 'review', 'done')),
+  status      VARCHAR(30) DEFAULT 'todo' CHECK (status IN ('todo', 'in-progress', 'done')),
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -461,7 +461,7 @@ const taskSchema = z.object({
   description: z.string().optional().default(""),
   due_date: z.string().optional().nullable(),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
-  status: z.enum(["todo", "in-progress", "review", "done"]).default("todo"),
+  status: z.enum(["todo", "in-progress", "done"]).default("todo"),
 });
 
 const updateTaskSchema = taskSchema.partial();
@@ -603,6 +603,8 @@ Update `src/api/tasks.js` in the frontend:
 
 ```js
 // frontend/src/api/tasks.js
+import { STATUS_TO_DB, PRIORITY_TO_DB } from "../utils/normalize";
+
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
 const authHeader = () => ({
@@ -621,8 +623,8 @@ export const fetchTasks = async (filters = {}) => {
 export const createTask = async (task) => {
   const body = {
     ...task,
-    priority: task.priority?.toLowerCase() || "medium",
-    status: task.status?.toLowerCase().replace(" ", "-") || "todo",
+    priority: PRIORITY_TO_DB[task.priority] || task.priority?.toLowerCase() || "medium",
+    status: STATUS_TO_DB[task.status] || task.status?.toLowerCase().replace(" ", "-") || "todo",
   };
   const res = await fetch(`${BASE}/api/tasks`, {
     method: "POST", headers: authHeader(), body: JSON.stringify(body),
@@ -634,8 +636,8 @@ export const createTask = async (task) => {
 export const updateTask = async (id, task) => {
   const body = {
     ...task,
-    priority: task.priority?.toLowerCase(),
-    status: task.status?.toLowerCase().replace(" ", "-"),
+    priority: PRIORITY_TO_DB[task.priority] || task.priority?.toLowerCase(),
+    status: STATUS_TO_DB[task.status] || task.status?.toLowerCase().replace(" ", "-"),
   };
   const res = await fetch(`${BASE}/api/tasks/${id}`, {
     method: "PUT", headers: authHeader(), body: JSON.stringify(body),
@@ -734,9 +736,15 @@ router.get("/calendar", async (req, res) => {
         priority AS task_priority,
         status AS task_status
        FROM tasks
-       WHERE user_id = $1 AND due_date IS NOT NULL
-       AND status != 'done'`,
-      [userId]
+       WHERE user_id = $1
+       AND due_date IS NOT NULL
+       AND status != 'done'
+       AND id NOT IN (
+         SELECT linked_task_id FROM events
+         WHERE linked_task_id IS NOT NULL
+         AND user_id = $1
+       )`,
+      [userId, userId]
     );
 
     res.json({
@@ -807,7 +815,6 @@ router.get("/", async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'done')::int AS completed,
         COUNT(*) FILTER (WHERE status = 'in-progress')::int AS in_progress,
         COUNT(*) FILTER (WHERE status = 'todo')::int AS todo,
-        COUNT(*) FILTER (WHERE status = 'review')::int AS in_review,
         COUNT(*) FILTER (WHERE due_date < $2 AND status != 'done')::int AS overdue,
         COUNT(*) FILTER (WHERE priority = 'high')::int AS high_priority,
         COUNT(*) FILTER (WHERE priority = 'medium')::int AS medium_priority,
@@ -1013,20 +1020,21 @@ router.post("/schedule", async (req, res) => {
       return res.json({ schedule: "No pending tasks found. You're all caught up! 🎉", events: [] });
     }
 
-    const systemPrompt = `You are a productivity scheduler. Create an optimized daily schedule.
-Return ONLY valid JSON in this exact format, no other text:
+    const systemPrompt = `You are a productivity scheduler. Return ONLY valid JSON, no other text:
 {
-  "summary": "Brief 1-2 sentence overview",
+  "summary": "Brief overview",
   "schedule": [
     {
       "time": "9:00 AM",
       "task": "Task title",
-      "duration": "1 hour",
+      "duration_hours": 1.5,
       "priority": "high",
       "task_id": "uuid-here"
     }
   ]
-}`;
+}
+
+IMPORTANT: duration_hours must be a NUMBER like 1, 1.5, 2. Never a string like "1 hour".`;
 
     const userMessage = `Schedule these tasks for today. Start at 9 AM, end by 6 PM, include breaks.
 Tasks: ${JSON.stringify(tasks.map(t => ({ id: t.id, title: t.title, priority: t.priority, due_date: t.due_date })))}`;
@@ -1036,8 +1044,9 @@ Tasks: ${JSON.stringify(tasks.map(t => ({ id: t.id, title: t.title, priority: t.
     // Parse JSON response
     let scheduleData;
     try {
-      const clean = aiReply.replace(/```json|```/g, "").trim();
-      scheduleData = JSON.parse(clean);
+      const match = aiReply.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON in AI response");
+      scheduleData = JSON.parse(match[0]);
     } catch (e) {
       scheduleData = { summary: aiReply, schedule: [] };
     }
@@ -1053,7 +1062,7 @@ Tasks: ${JSON.stringify(tasks.map(t => ({ id: t.id, title: t.title, priority: t.
         if (period === "AM" && hours === 12) hours = 0;
 
         const start = new Date(`${today}T${String(hours).padStart(2, "0")}:${String(minutes || 0).padStart(2, "0")}:00`);
-        const durationHours = parseFloat(item.duration) || 1;
+        const durationHours = Number(item.duration_hours) || 1;
         const end = new Date(start.getTime() + durationHours * 60 * 60 * 1000);
 
         const eventResult = await db.query(
@@ -1089,7 +1098,7 @@ export const login = async (email, password) => {
   const res = await fetch(`${BASE}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include", // needed for httpOnly cookie
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) {
@@ -1274,6 +1283,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import { fetchTasks, createTask, updateTask, deleteTask } from "./api/tasks";
 import { getStoredUser } from "./api/auth";
+import { STATUS_TO_DB, STATUS_FROM_DB, PRIORITY_TO_DB, PRIORITY_FROM_DB } from "./utils/normalize";
 
 export default function App() {
   const [tasks, setTasks] = useState([]);
@@ -1303,37 +1313,31 @@ export default function App() {
   };
 
   const handleMove = async (id, newStatus) => {
-    const toDb = { "To Do": "todo", "In Progress": "in-progress", "Review": "review", "Done": "done" };
-    const toFrontend = { "todo": "To Do", "in-progress": "In Progress", "review": "Review", "done": "Done" };
-    const dbStatus = toDb[newStatus] || newStatus;
+    const dbStatus = STATUS_TO_DB[newStatus] || newStatus;
     await updateTask(id, { status: dbStatus });
     // Normalize back to frontend format after DB write
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: toFrontend[dbStatus] } : t));
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, status: STATUS_FROM_DB[dbStatus] } : t));
   };
 
   const handleEventCreate = (event) => setEvents(prev => [...prev, event]);
 
   const handleTaskCreated = (task) => {
     // Normalize DB task to frontend format
-    const statusMap = { "todo": "To Do", "in-progress": "In Progress", "review": "Review", "done": "Done" };
-    const priorityMap = { "low": "Low", "medium": "Medium", "high": "High" };
     setTasks(prev => [...prev, {
       ...task,
-      status: statusMap[task.status] || task.status,
-      priority: priorityMap[task.priority] || task.priority,
+      status: STATUS_FROM_DB[task.status] || task.status,
+      priority: PRIORITY_FROM_DB[task.priority] || task.priority,
       due: task.due_date,
     }]);
   };
 
   const handleSave = async (task) => {
-    const statusMap = { "To Do": "todo", "In Progress": "in-progress", "Review": "review", "Done": "done" };
-    const priorityMap = { "Low": "low", "Medium": "medium", "High": "high" };
     const payload = {
       title: task.title,
       description: task.description,
       due_date: task.due,
-      priority: priorityMap[task.priority] || task.priority,
-      status: statusMap[task.status] || task.status,
+      priority: PRIORITY_TO_DB[task.priority] || task.priority,
+      status: STATUS_TO_DB[task.status] || task.status,
     };
 
     if (task.id) {
@@ -1395,108 +1399,159 @@ VITE_API_URL=http://localhost:3001
 
 ## Bug Fixes
 
-### Fix 1 — Duplicate summary route
-In `src/index.js`, remove the summary mount line and keep it inside `tasks.js` only **OR** keep `summary.js` and delete the block from `tasks.js`. Cleanest solution: delete from `tasks.js`, keep `summary.js`.
-
-Also in `index.js`, fix the mount order — summary must come BEFORE the tasks wildcard:
+### Fix 1 — Create normalize.js
+Create this file first thing. Import from it everywhere.
 
 ```js
-// WRONG order — /:id catches /summary first
-app.use("/api/tasks", authenticateToken, taskRoutes);
+// frontend/src/utils/normalize.js
 
-// CORRECT — summary registered separately, Express sees it first
-app.use("/api/tasks/summary", authenticateToken, summaryRoutes);
-app.use("/api/tasks", authenticateToken, taskRoutes);
-```
+export const STATUS_TO_DB = {
+  "To Do": "todo",
+  "In Progress": "in-progress",
+  "Done": "done",
+};
 
-### Fix 2 — Nonexistent `assignee` column crash
-In `src/routes/events.js`, remove this line from the JOIN:
+export const STATUS_FROM_DB = {
+  "todo": "To Do",
+  "in-progress": "In Progress",
+  "done": "Done",
+};
 
-```js
-// DELETE THIS LINE
-t.assignee AS task_assignee
-```
+export const PRIORITY_TO_DB = {
+  "Low": "low",
+  "Medium": "medium",
+  "High": "high",
+};
 
-Replace the full SELECT with:
-
-```sql
-SELECT
-  e.id,
-  e.title,
-  e.start_datetime,
-  e.end_datetime,
-  e.linked_task_id,
-  t.priority AS task_priority,
-  t.status AS task_status
-FROM events e
-LEFT JOIN tasks t ON e.linked_task_id = t.id
-WHERE ...
-```
-
-### Fix 3 — Status mismatch after handleMove
-In `App.jsx`, fix `handleMove`:
-
-```js
-const handleMove = async (id, newStatus) => {
-  const toDb = { "To Do": "todo", "In Progress": "in-progress", "Review": "review", "Done": "done" };
-  const toFrontend = { "todo": "To Do", "in-progress": "In Progress", "review": "Review", "done": "Done" };
-  const dbStatus = toDb[newStatus] || newStatus;
-  await updateTask(id, { status: dbStatus });
-  // Normalize back to frontend format after DB write
-  setTasks(prev => prev.map(t => t.id === id ? { ...t, status: toFrontend[dbStatus] } : t));
+export const PRIORITY_FROM_DB = {
+  "low": "Low",
+  "medium": "Medium",
+  "high": "High",
 };
 ```
 
-### Fix 4 — Node fetch reliability
-Install axios and replace `fetch` in `src/routes/ai.js`:
-
-```bash
-npm install axios
-```
+Then in App.jsx, tasks.js, everywhere — replace all inline maps with:
 
 ```js
-// Replace the callGemini function
-const axios = require("axios");
+// From src/App.jsx
+import { STATUS_TO_DB, STATUS_FROM_DB, PRIORITY_TO_DB, PRIORITY_FROM_DB } from "./utils/normalize";
 
-const callGemini = async (systemPrompt, userMessage) => {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
-  const { data } = await axios.post(url, {
-    system_instruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ parts: [{ text: userMessage }] }],
-    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-  });
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response.";
+// From src/api/tasks.js
+import { STATUS_TO_DB, PRIORITY_TO_DB } from "../utils/normalize";
+```
+
+### Fix 2 — Refresh Tokens Pattern (15m access + cookie refresh)
+Keep short-lived access tokens and rotate refresh tokens in an httpOnly cookie.
+
+```js
+// In src/routes/auth.js — generateTokens becomes:
+const generateTokens = (user) => {
+  const accessToken = jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }
+  );
+  const refreshToken = jwt.sign(
+    { id: user.id },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: "7d" }
+  );
+  return { accessToken, refreshToken };
 };
 ```
 
-### Fix 5 — Fragile TASK_CREATE regex
-In `src/routes/ai.js`, replace:
+Make sure schema.sql includes refresh_tokens and add cookie-parser:
 
 ```js
-// FRAGILE — breaks on multiline JSON
-const taskMatch = aiReply.match(/TASK_CREATE:(\{[^}]+\})/);
-
-// FIXED — handles multiline
-const taskMatch = aiReply.match(/TASK_CREATE:(\{[\s\S]*?\})/);
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());
 ```
 
-### Fix 6 — Null safety on summary in Dashboard
+Login/register should return { user, accessToken } and set the refresh cookie. Frontend stores accessToken in localStorage.
 
-In `Dashboard.jsx`, every summary value needs a fallback:
+### Fix 3 — Force Strict Duration Schema in AI Schedule
+In src/routes/ai.js, update the schedule system prompt:
 
-```jsx
-// Never this:
-<p>{summary.total}</p>
+```js
+// Replace the schedule systemPrompt JSON format example:
+const systemPrompt = `You are a productivity scheduler. Return ONLY valid JSON, no other text:
+{
+  "summary": "Brief overview",
+  "schedule": [
+    {
+      "time": "9:00 AM",
+      "task": "Task title",
+      "duration_hours": 1.5,
+      "priority": "high",
+      "task_id": "uuid-here"
+    }
+  ]
+}
 
-// Always this:
-<p>{summary?.total ?? 0}</p>
+IMPORTANT: duration_hours must be a NUMBER like 1, 1.5, 2. Never a string like "1 hour".`;
+```
+
+Then in the event creation loop:
+
+```js
+// Replace:
+const durationHours = parseFloat(item.duration) || 1;
+
+// With:
+const durationHours = Number(item.duration_hours) || 1;
+```
+
+### Fix 4 — Safer AI JSON Extraction
+In src/routes/ai.js, replace the schedule JSON parse block:
+
+```js
+// Replace:
+const clean = aiReply.replace(/```json|```/g, "").trim();
+scheduleData = JSON.parse(clean);
+
+// With:
+const match = aiReply.match(/\{[\s\S]*\}/);
+if (!match) throw new Error("No JSON in AI response");
+scheduleData = JSON.parse(match[0]);
+```
+
+### Fix 5 — Deduplicate Calendar Entries
+In src/routes/events.js, update the virtual task query to exclude tasks already linked to events:
+
+```js
+// Replace the taskResult query with:
+const taskResult = await db.query(
+  `SELECT
+    id,
+    title,
+    due_date::timestamptz AS start_datetime,
+    (due_date + INTERVAL '1 hour')::timestamptz AS end_datetime,
+    id AS linked_task_id,
+    priority AS task_priority,
+    status AS task_status
+   FROM tasks
+   WHERE user_id = $1
+   AND due_date IS NOT NULL
+   AND status != 'done'
+   AND id NOT IN (
+     SELECT linked_task_id FROM events
+     WHERE linked_task_id IS NOT NULL
+     AND user_id = $1
+   )`,
+  [userId, userId]  // $1 appears twice, pass userId twice
+);
 ```
 
 ---
 
 ## Revised Priority Order for Day 2
 
-Forget the parallel timeline from the original plan. This is what actually matters:
+Day 2 now starts with:
+
+1. Create normalize.js (prevents the #1 bug class)
+2. Run schema.sql (includes refresh_tokens table)
+3. Phase 1: auth + tasks CRUD
+4. Phase 2: AI + calendar + dashboard
 
 ### Phase 1 — First 90 minutes (project is alive or dead here)
 Everyone focuses on getting this single flow working end-to-end:
@@ -1505,7 +1560,7 @@ Everyone focuses on getting this single flow working end-to-end:
 Register → Login → Create Task → Fetch Tasks → Show on Board
 ```
 
-What to build: `db.js`, `index.js`, `auth.js`, `tasks.js`, frontend `auth.js` + `tasks.js` + App.jsx wiring.
+What to build: db.js, index.js, auth.js, tasks.js, frontend auth.js + tasks.js + App.jsx wiring.
 
 Don't touch AI, events, or calendar until this works.
 
@@ -1516,7 +1571,7 @@ AI Schedule → calendar updates
 Dashboard shows live stats
 ```
 
-What to build: `ai.js` route, `events.js`, `summary.js`, wire `AIChat.jsx`.
+What to build: ai.js route, events.js, summary.js, wire AIChat.jsx.
 
 ### Phase 3 — Last 60 minutes (if everything works)
 Polish, voice input, analytics. If Phase 2 isn't solid, skip Phase 3 entirely.
@@ -1527,12 +1582,10 @@ Polish, voice input, analytics. If Phase 2 isn't solid, skip Phase 3 entirely.
 
 | Cut first | Never cut |
 |---|---|
-| Refresh token DB table — just use stateless JWT | Auth (any form) |
 | Cursor pagination — use simple `LIMIT 50` | Tasks CRUD |
 | Zod validation — just use basic checks | AI chat |
 | Timezone support | AI schedule |
 | Analytics page | Live frontend integration |
-| Cookie security flags | |
 
 For the demo, the one moment that wins it:
 
@@ -1547,23 +1600,20 @@ Yes, all fixes are aligned. Let me map each one explicitly:
 
 ## Fix-by-Fix Verification
 
-**Fix 1 — Duplicate summary route**
-Requirement: `GET /api/tasks/summary` (5 pts). The duplicate caused one to shadow the other — now only one exists, mounted before `/:id` so Express doesn't eat it as a task ID param. ✅
+**Fix 1 — Create normalize.js**
+Requirement: Task filtering by priority and status, working end-to-end (must-have). Centralizing maps prevents drift across components and APIs. ✅
 
-**Fix 2 — Nonexistent assignee column**
-Requirement: DB schema has no `assignee` field. Schema defines Tasks as: `id, user_id, title, description, due_date, priority, status`. The crash would have killed the calendar endpoint (4 pts) entirely. ✅
+**Fix 2 — Refresh tokens pattern**
+Requirement: JWT auth with short-lived access tokens and long-lived refresh cookies. This meets the scoring hint and keeps sessions stable. ✅
 
-**Fix 3 — Status mismatch after handleMove**
-Requirement: Task filtering by priority and status, working end-to-end (must-have). If status gets corrupted after a move, the Kanban board breaks visually and filtering stops working. The bidirectional normalization map fixes this. ✅
+**Fix 3 — Strict duration schema**
+Requirement: AI schedule must create valid calendar events. Numeric hours prevent parsing errors and time math bugs. ✅
 
-**Fix 4 — axios over fetch**
-Requirement: All AI endpoints must return real responses. If `fetch` silently fails on the lab's Node version, the AI chat (10 pts) and AI schedule (8 pts) — your two highest-value endpoints — both die. axios is safer under pressure. ✅
+**Fix 4 — Safer JSON extraction**
+Requirement: AI schedule must parse even when the model adds extra text. Regex extraction ensures JSON is still recovered. ✅
 
-**Fix 5 — Multiline TASK_CREATE regex**
-Requirement: `POST /api/ai/chat` must parse task creation commands. Gemini often returns formatted JSON across multiple lines. The old regex `[^}]+` stops at the first `}` it finds, breaking the parse. The new `[\s\S]*?` handles multiline correctly. ✅
-
-**Fix 6 — Null safety on summary**
-Requirement: Dashboard summary cards with live task statistics (must-have). If the fetch hasn't returned yet and the component tries to read `summary.total`, React crashes the entire page — wiping your demo. Optional chaining `summary?.total ?? 0` keeps the UI alive during load. ✅
+**Fix 5 — Deduplicate calendar entries**
+Requirement: Calendar should not show duplicate tasks when events are already linked. This keeps the UI clean and avoids double counting. ✅
 
 ---
 
@@ -1587,14 +1637,12 @@ Run these after each endpoint is built to verify before frontend wiring:
 # Register
 curl -X POST http://localhost:3001/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"name":"Rehan","email":"rehan@test.com","password":"password123","role":"Student"}' \
-  -c cookies.txt
+  -d '{"name":"Rehan","email":"rehan@test.com","password":"password123","role":"Student"}'
 
 # Login (save token)
 TOKEN=$(curl -s -X POST http://localhost:3001/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"rehan@test.com","password":"password123"}' \
-  -c cookies.txt | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])")
+  -d '{"email":"rehan@test.com","password":"password123"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['accessToken'])")
 
 # Create task
 curl -X POST http://localhost:3001/api/tasks \
@@ -1626,13 +1674,12 @@ curl "http://localhost:3001/api/events/calendar" -H "Authorization: Bearer $TOKE
 
 ## Status ↔ Priority Normalization Map
 
-The frontend uses human-readable values. The DB uses lowercase/hyphenated. Always normalize at the API boundary — never in components.
+The frontend uses human-readable values. The DB uses lowercase/hyphenated. Always normalize using the shared normalize.js module — never inline maps.
 
 | Frontend Value | DB Value |
 |---|---|
 | "To Do" | "todo" |
 | "In Progress" | "in-progress" |
-| "Review" | "review" |
 | "Done" | "done" |
 | "High" | "high" |
 | "Medium" | "medium" |
@@ -1642,48 +1689,7 @@ The frontend uses human-readable values. The DB uses lowercase/hyphenated. Alway
 
 ## Bonus Features (Attempt Only After All Must-Haves Work)
 
-Priority order — highest points first:
-
-### ★ Voice Input — Web Speech API (+8 pts) — Person C — 30 min
-```jsx
-// Add to AIChat.jsx
-const startVoice = () => {
-  const recognition = new window.webkitSpeechRecognition();
-  recognition.lang = "en-US";
-  recognition.onresult = (event) => {
-    const transcript = event.results[0][0].transcript;
-    setInput(transcript);
-    send(transcript);
-  };
-  recognition.start();
-};
-
-// Add mic button next to send button:
-<button onClick={startVoice} className="bg-gray-100 text-gray-600 px-3 py-2.5 rounded-xl hover:bg-gray-200">🎙</button>
-```
-
-### ★ Analytics Page (+6 pts) — Person B — 45 min
-
-Add `GET /api/tasks/analytics` to backend:
-
-```js
-router.get("/analytics", async (req, res) => {
-  const result = await db.query(
-    `SELECT
-      DATE(created_at) AS date,
-      COUNT(*) FILTER (WHERE status = 'done') AS completed,
-      COUNT(*) AS created
-     FROM tasks WHERE user_id = $1
-     AND created_at > NOW() - INTERVAL '30 days'
-     GROUP BY DATE(created_at)
-     ORDER BY date`,
-    [req.user.id]
-  );
-  res.json(result.rows);
-});
-```
-
-Then add a simple chart page using inline SVG bars (no libraries needed).
+Optional features awarded in order of submission. Each item scored separately.
 
 ### ★ AI Priority Reorganizer (+12 pts) — Person A — 60 min
 
@@ -1715,16 +1721,66 @@ Only return JSON.`;
 });
 ```
 
+### ★ Real-Time Collaboration (+10 pts)
+Use WebSockets to broadcast task updates so multiple users see live changes on the board.
+
+### ★ Voice Input — Web Speech API (+8 pts) — Person C — 30 min
+```jsx
+// Add to AIChat.jsx
+const startVoice = () => {
+  const recognition = new window.webkitSpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    setInput(transcript);
+    send(transcript);
+  };
+  recognition.start();
+};
+
+// Add mic button next to send button:
+<button onClick={startVoice} className="bg-gray-100 text-gray-600 px-3 py-2.5 rounded-xl hover:bg-gray-200">🎙</button>
+```
+
+### ★ Recurring Task Automation (+8 pts)
+Allow users to define recurrence rules and auto-generate tasks on schedule (cron job or background worker).
+
+### ★ Productivity Analytics Page (+6 pts) — Person B — 45 min
+
+Add `GET /api/tasks/analytics` to backend:
+
+```js
+router.get("/analytics", async (req, res) => {
+  const result = await db.query(
+    `SELECT
+      DATE(created_at) AS date,
+      COUNT(*) FILTER (WHERE status = 'done') AS completed,
+      COUNT(*) AS created
+     FROM tasks WHERE user_id = $1
+     AND created_at > NOW() - INTERVAL '30 days'
+     GROUP BY DATE(created_at)
+     ORDER BY date`,
+    [req.user.id]
+  );
+  res.json(result.rows);
+});
+```
+
+Then add a simple chart page using inline SVG bars (no libraries needed).
+
+### ★ Browser Push Notifications
+Notify users about upcoming deadlines with the Notifications API and a service worker.
+
 ---
 
 ## Common Day 2 Failure Modes
 
 | # | Failure | Fix |
 |---|---------|-----|
-| 1 | **CORS error** in browser | Ensure `credentials: true` in backend cors config AND `credentials: "include"` in every frontend fetch call |
-| 2 | **JWT token expired** during demo | Set access token to 1h for demo day, revert to 15m after |
+| 1 | **CORS error** in browser | Ensure backend CORS origin matches the frontend and every API call sends the Authorization header |
+| 2 | **JWT token expired** during demo | Use refresh endpoint to rotate access tokens (15m access + refresh cookie) |
 | 3 | **Gemini API key missing** | Get key from `aistudio.google.com` — free tier supports the demo volume |
-| 4 | **Status mismatch** — tasks not appearing in correct column | Always normalize in API calls, never in components. Use the normalization map above |
+| 4 | **Status mismatch** — tasks not appearing in correct column | Always normalize with normalize.js and keep maps centralized |
 | 5 | **`/api/tasks/summary` 404** | Ensure `summary` route is registered BEFORE `/:id` route, or mount at a different path |
 | 6 | **Tasks not loading after login** | Confirm `useEffect` in App.jsx depends on `isLoggedIn` and `fetchTasks()` is called with Authorization header |
 | 7 | **AI schedule creates duplicate events** | Add a `WHERE date(start_datetime) = CURRENT_DATE` check before inserting — skip if today's events already exist |
@@ -1742,7 +1798,7 @@ Only return JSON.`;
 *Demo: type in AI chat, show task appearing on board, show calendar updating.*
 
 **[0:50–1:20]** — Technical Depth
-> "The backend is Node + Express with PostgreSQL. Auth uses bcrypt and JWT with refresh token rotation. The AI endpoint sends task context to Gemini and parses structured commands from natural language responses."
+> "The backend is Node + Express with PostgreSQL. Auth uses bcrypt and JWT with refresh tokens for stable sessions. The AI endpoint sends task context to Gemini and parses structured commands from natural language responses."
 
 **[1:20–1:50]** — Architecture
 > "We built against our UML diagrams: the sequence diagram maps exactly to our POST /api/ai/chat endpoint flow. The class diagram is our PostgreSQL schema. Every design decision was intentional."
@@ -1755,7 +1811,7 @@ Only return JSON.`;
 ## Critical Success Factors
 
 - Test every endpoint with curl before touching the frontend — don't debug backend and frontend simultaneously
-- The status normalization map is the #1 source of bugs — bookmark it
+- The status normalization map is the #1 source of bugs — use normalize.js everywhere
 - If Gemini is slow, add `generationConfig: { maxOutputTokens: 512 }` to speed up responses
 - `GET /api/tasks/summary` must be registered before `GET /api/tasks/:id` — route order matters in Express
 - Keep `isLoggedIn = true` in App.jsx as a fallback if auth wiring runs out of time — judges care about features more than auth flow in Day 2
