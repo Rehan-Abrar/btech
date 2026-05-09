@@ -37,15 +37,32 @@ app.get("/health", (req, res) => res.json({ status: "ok", timestamp: new Date() 
 // Public routes
 // Temporary migration route to fix DB schema on Render
 app.get("/api/migrate", async (req, res) => {
+  const results = [];
   try {
-    await db.query(`
-      ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurring_rule TEXT;
-      ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_priority_check;
-      ALTER TABLE tasks ADD CONSTRAINT tasks_priority_check CHECK (priority IN ('low', 'medium', 'high', 'urgent'));
-    `);
-    res.json({ message: "Migration successful" });
+    // 1. Add column
+    try {
+      await db.query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurring_rule TEXT");
+      results.push("Column recurring_rule added (or already exists)");
+    } catch (e) { results.push("Column error: " + e.message); }
+
+    // 2. Update priority constraint
+    try {
+      // Try to drop common default names
+      await db.query("ALTER TABLE tasks DROP CONSTRAINT IF EXISTS tasks_priority_check");
+      await db.query("ALTER TABLE tasks ADD CONSTRAINT tasks_priority_check CHECK (priority IN ('low', 'medium', 'high', 'urgent'))");
+      results.push("Priority constraint updated to include 'urgent'");
+    } catch (e) { 
+      results.push("Constraint error: " + e.message + ". Trying fallback...");
+      // Fallback: try to just modify it if possible or ignore if it's already there
+      try {
+         await db.query("ALTER TABLE tasks ADD CONSTRAINT tasks_priority_check_v2 CHECK (priority IN ('low', 'medium', 'high', 'urgent'))");
+         results.push("Fallback constraint v2 added");
+      } catch (e2) { results.push("Fallback error: " + e2.message); }
+    }
+
+    res.json({ results });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, partial_results: results });
   }
 });
 
